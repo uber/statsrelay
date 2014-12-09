@@ -46,6 +46,10 @@ void stats_log(const char *format, ...) {
 	}
 
 	if (g_verbose == 1) {
+		// Technically this isn't handling \0 bytes correctly and
+		// ought to use fwrite(3) to do that correctly; but that
+		// requires a lot of boilerplate code, and who logs binary data
+		// to stderr?
 		fputs(fmt_buf, stderr);
 	}
 
