@@ -2,30 +2,53 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <syslog.h>
 
-int g_verbose = 1;
+static int g_verbose = 1;
 
 void stats_log_verbose(int verbose) {
 	g_verbose = verbose;
 }
 
 void stats_log(const char *format, ...) {
-	va_list args;
-	char buffer[MAX_LOG_SIZE];
+	int fmt_len;
+	int size = 1024;
+	va_list ap;
+	char *fmt_buf, *np;  // allocate the buffer into p
 
-	va_start(args, format);
-	vsnprintf(buffer, sizeof(buffer), format, args);
-	va_end(args);
-
-	if (g_verbose == 1) {
-		va_start(args, format);
-		vfprintf(stderr, format, args);
-		va_end(args);
-		fprintf(stderr, "\n");
+	// Allocate the format buffer into p;
+	if ((fmt_buf = malloc(size)) == NULL) {
+		return;
 	}
 
-	va_start(args, format);
-	vsyslog(LOG_INFO, format, args);
-	va_end(args);
+	// Keep trying to vsnprintf until we have a sufficiently sized buffer
+	// allocated.
+	while (1) {
+		va_start(ap, format);
+		fmt_len = vsnprintf(fmt_buf, size, format, ap);
+		va_end(ap);
+
+		if (fmt_len < 0) {
+			return;
+		} else if (fmt_len < size) {
+			return;
+		}
+
+		size <<= 1;  // double size
+
+		if ((np = realloc(fmt_buf, size)) == NULL) {
+			free(fmt_buf);
+			return;
+		} else {
+			fmt_buf = np;
+		}
+	}
+
+	if (g_verbose == 1) {
+		fputs(fmt_buf, stderr);
+	}
+
+	syslog(LOG_INFO, fmt_buf, fmt_len);
+	free(fmt_buf);
 }
