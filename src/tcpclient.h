@@ -1,5 +1,5 @@
-#ifndef TCPCLIENT_H
-#define TCPCLIENT_H
+#ifndef STATSRELAY_TCPCLIENT_H
+#define STATSRELAY_TCPCLIENT_H
 // This module handles all outbound network communication. Despite it's name,
 // it is also capable of connecting to UDP endpoints.
 
@@ -85,4 +85,4 @@ int tcpclient_sendall(tcpclient_t *client,
 void tcpclient_destroy(tcpclient_t *client,
 		int drop_queued);
 
-#endif
+#endif  // STATSRELAY_TCPCLIENT_H

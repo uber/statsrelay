@@ -1,5 +1,5 @@
-#ifndef TCPSERVER_H
-#define TCPSERVER_H
+#ifndef STATSRELAY_TCPSERVER_H
+#define STATSRELAY_TCPSERVER_H
 
 #include "config.h"
 #include <sys/types.h>
@@ -13,5 +13,4 @@ tcpserver_t *tcpserver_create(struct ev_loop *loop, void *data);
 int tcpserver_bind(tcpserver_t *server, const char *address_and_port, const char *default_port, void *(*cb_conn)(int, void *), int (*cb_recv)(int, void *, void *));
 void tcpserver_destroy(tcpserver_t *server);
 
-
-#endif
+#endif  // STATSRELAY_TCPSERVER_H

@@ -18,9 +18,9 @@
 #include <ev.h>
 
 enum statsrelay_proto {
-   STATSRELAY_PROTO_UNKNOWN = 0,
-   STATSRELAY_PROTO_STATSD = 1,
-   STATSRELAY_PROTO_CARBON = 2
+	STATSRELAY_PROTO_UNKNOWN = 0,
+	STATSRELAY_PROTO_STATSD = 1,
+	STATSRELAY_PROTO_CARBON = 2
 };
 
 
@@ -136,51 +136,51 @@ int main(int argc, char **argv) {
 	while (c != -1) {
 		c = getopt_long(argc, argv, "c:b:p:vh", long_options, &option_index);
 		switch (c) {
-			case -1:
-				break;
-			case 0:
-			case 'h':
-				print_help(argv[0]);
-				return 1;
-			case 'b':
-				len = strlen(optarg) + 1;
-				address = malloc(len);
-				memcpy(address, optarg, len);
-				options.binds = g_list_prepend(options.binds, address);
-				break;
-			case 'v':
-				options.verbose = 1;
-				break;
-			case 'c':
-				if (access(optarg, R_OK)) {
-					stats_log("can't read config file at \"%s\"", optarg);
-					goto err;
-				}
-				struct stat st_buf;
-				if (stat(optarg, &st_buf) == -1) {
-					stats_log("failed to stat(2) config file at \"%s\"", optarg);
-					goto err;
-				}
-				if (!S_ISREG(st_buf.st_mode)) {
-					stats_log("the config file \"%s\" exists, but appears to be the wrong file type; cowardly refusing to continue due to ketama bug", optarg);
-					goto err;
-				}
-				options.filename = optarg;
-				break;
-			case 'q':
-				options.max_send_queue = strtoull(optarg, &err, 10);
-				break;
-			case 'n':
-				options.validate_lines = 0;
-				break;
-			case 'p':
-				if (choose_protocol(&protocol, optarg)) {
-					goto err;
-				}
-				break;
-			default:
-				stats_log("main: Unknown argument %c", c);
+		case -1:
+			break;
+		case 0:
+		case 'h':
+			print_help(argv[0]);
+			return 1;
+		case 'b':
+			len = strlen(optarg) + 1;
+			address = malloc(len);
+			memcpy(address, optarg, len);
+			options.binds = g_list_prepend(options.binds, address);
+			break;
+		case 'v':
+			options.verbose = 1;
+			break;
+		case 'c':
+			if (access(optarg, R_OK)) {
+				stats_log("can't read config file at \"%s\"", optarg);
 				goto err;
+			}
+			struct stat st_buf;
+			if (stat(optarg, &st_buf) == -1) {
+				stats_log("failed to stat(2) config file at \"%s\"", optarg);
+				goto err;
+			}
+			if (!S_ISREG(st_buf.st_mode)) {
+				stats_log("the config file \"%s\" exists, but appears to be the wrong file type; cowardly refusing to continue due to ketama bug", optarg);
+				goto err;
+			}
+			options.filename = optarg;
+			break;
+		case 'q':
+			options.max_send_queue = strtoull(optarg, &err, 10);
+			break;
+		case 'n':
+			options.validate_lines = 0;
+			break;
+		case 'p':
+			if (choose_protocol(&protocol, optarg)) {
+				goto err;
+			}
+			break;
+		default:
+			stats_log("main: Unknown argument %c", c);
+			goto err;
 		}
 	}
 	if (protocol == STATSRELAY_PROTO_UNKNOWN) {
@@ -192,7 +192,7 @@ int main(int argc, char **argv) {
 	assert(protocol == STATSRELAY_PROTO_STATSD || protocol == STATSRELAY_PROTO_CARBON);
 	if (options.filename == NULL) {
 		options.filename = \
-				protocol == STATSRELAY_PROTO_STATSD ? default_statsd_config : default_carbon_config;
+			protocol == STATSRELAY_PROTO_STATSD ? default_statsd_config : default_carbon_config;
 	}
 
 	if (options.binds == NULL) {
@@ -213,15 +213,15 @@ int main(int argc, char **argv) {
 	ev_signal_start(loop, &sighup_watcher);
 
 	switch (protocol) {
-		case STATSRELAY_PROTO_STATSD:
-			server = stats_server_create(options.filename, loop, protocol_parser_statsd, validate_statsd);
-			break;
-		case STATSRELAY_PROTO_CARBON:
-			server = stats_server_create(options.filename, loop, protocol_parser_carbon, validate_carbon);
-			break;
-		default:
-			stats_log("main: unknown protocol!\n");
-			goto err;
+	case STATSRELAY_PROTO_STATSD:
+		server = stats_server_create(options.filename, loop, protocol_parser_statsd, validate_statsd);
+		break;
+	case STATSRELAY_PROTO_CARBON:
+		server = stats_server_create(options.filename, loop, protocol_parser_carbon, validate_carbon);
+		break;
+	default:
+		stats_log("main: unknown protocol!\n");
+		goto err;
 	}
 
 	if (server == NULL) {
