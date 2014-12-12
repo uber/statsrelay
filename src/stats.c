@@ -63,10 +63,10 @@ typedef struct {
 
 
 stats_server_t *stats_server_create(
-		const char *filename,
-		struct ev_loop *loop,
-		protocol_parser_t parser,
-		validate_line_validator_t validator) {
+	const char *filename,
+	struct ev_loop *loop,
+	protocol_parser_t parser,
+	validate_line_validator_t validator) {
 	stats_server_t *server;
 
 	server = malloc(sizeof(stats_server_t));
@@ -311,62 +311,62 @@ void stats_send_statistics(stats_session_t *session) {
 	}
 
 	buffer_produced(response,
-		snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-		"global bytes_recv_udp counter %" PRIu64 "\n",
-		session->server->bytes_recv_udp));
+			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+				 "global bytes_recv_udp counter %" PRIu64 "\n",
+				 session->server->bytes_recv_udp));
 
 	buffer_produced(response,
-		snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-		"global bytes_recv_tcp counter %" PRIu64 "\n",
-		session->server->bytes_recv_tcp));
+			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+				 "global bytes_recv_tcp counter %" PRIu64 "\n",
+				 session->server->bytes_recv_tcp));
 
 	buffer_produced(response,
-		snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-		"global total_connections counter %" PRIu64 "\n",
-		session->server->total_connections));
+			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+				 "global total_connections counter %" PRIu64 "\n",
+				 session->server->total_connections));
 
 	buffer_produced(response,
-		snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-		"global last_reload timestamp %" PRIu64 "\n",
-		session->server->last_reload));
+			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+				 "global last_reload timestamp %" PRIu64 "\n",
+				 session->server->last_reload));
 
 	buffer_produced(response,
-		snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-		"global malformed_lines counter %" PRIu64 "\n",
-		session->server->malformed_lines));
+			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+				 "global malformed_lines counter %" PRIu64 "\n",
+				 session->server->malformed_lines));
 
 	g_hash_table_iter_init(&iter, session->server->backends);
 	while (g_hash_table_iter_next(&iter, &key, &value)) {
 		backend = (stats_backend_t *)value;
 
 		buffer_produced(response,
-			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-			"backend:%s bytes_queued counter %" PRIu64 "\n",
-			backend->key, backend->bytes_queued));
+				snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+					 "backend:%s bytes_queued counter %" PRIu64 "\n",
+					 backend->key, backend->bytes_queued));
 
 		buffer_produced(response,
-			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-			"backend:%s bytes_sent counter %" PRIu64 "\n",
-			backend->key, backend->bytes_sent));
+				snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+					 "backend:%s bytes_sent counter %" PRIu64 "\n",
+					 backend->key, backend->bytes_sent));
 
 		buffer_produced(response,
-			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-			"backend:%s relayed_lines counter %" PRIu64 "\n",
-			backend->key, backend->relayed_lines));
+				snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+					 "backend:%s relayed_lines counter %" PRIu64 "\n",
+					 backend->key, backend->relayed_lines));
 
 		buffer_produced(response,
-			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-			"backend:%s dropped_lines counter %" PRIu64 "\n",
-			backend->key, backend->dropped_lines));
-		
+				snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+					 "backend:%s dropped_lines counter %" PRIu64 "\n",
+					 backend->key, backend->dropped_lines));
+
 		buffer_produced(response,
-			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-			"backend:%s failing boolean %i\n",
-			backend->key, backend->failing));
+				snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+					 "backend:%s failing boolean %i\n",
+					 backend->key, backend->failing));
 	}
 
 	buffer_produced(response,
-		snprintf((char *)buffer_tail(response), buffer_spacecount(response), "\n"));
+			snprintf((char *)buffer_tail(response), buffer_spacecount(response), "\n"));
 
 	while (buffer_datacount(response) > 0) {
 		bytes_sent = send(session->sd, buffer_head(response), buffer_datacount(response), 0);
@@ -553,5 +553,3 @@ void stats_server_destroy(stats_server_t *server) {
 	ketama_smoke(server->kc);
 	free(server);
 }
-
-

@@ -14,9 +14,9 @@
 
 
 static struct option long_options[] = {
-	{"config",			required_argument,	NULL, 'c'},
-	{"verbose",			no_argument,		NULL, 'v'},
-	{"help",			no_argument,		NULL, 'h'},
+	{"config",	required_argument,	NULL, 'c'},
+	{"verbose",	no_argument,		NULL, 'v'},
+	{"help",	no_argument,		NULL, 'h'},
 };
 
 typedef struct statsrelay_options_t {
@@ -58,10 +58,10 @@ int main(int argc, char **argv) {
 	statsrelay_options_t options;
 	int option_index = 0;
 	char c = 0;
-    FILE *input;
-    char *lineptr;
-    size_t linelen, len;
-    mcs *ks;
+	FILE *input;
+	char *lineptr;
+	size_t linelen, len;
+	mcs *ks;
 
 	options.filename = "/etc/statsrelay.conf";
 	options.verbose = 0;
@@ -70,21 +70,21 @@ int main(int argc, char **argv) {
 		c = getopt_long(argc, argv, "c:vh", long_options, &option_index);
 
 		switch (c) {
-			case -1:
-				break;
-			case 0:
-			case 'h':
-				print_help(argv[0]);
-				return 1;
-			case 'v':
-				options.verbose = 1;
-				break;
-			case 'c':
-				options.filename = optarg;
-				break;
-			default:
-				stats_log("main: Unknown argument %c", c);
-				return 3;
+		case -1:
+			break;
+		case 0:
+		case 'h':
+			print_help(argv[0]);
+			return 1;
+		case 'v':
+			options.verbose = 1;
+			break;
+		case 'c':
+			options.filename = optarg;
+			break;
+		default:
+			stats_log("main: Unknown argument %c", c);
+			return 3;
 		}
 	}
 
@@ -97,25 +97,25 @@ int main(int argc, char **argv) {
 
 	stats_log_verbose(options.verbose);
 
-    if (optind >= argc) {
-        input = stdin;
-    } else {
-        input = fopen(argv[optind], "r");
-        if (input == NULL) {
-            printf("Could not open %s", argv[optind]);
-            stats_log_end();
-            return 1;
-        }
-    }
+	if (optind >= argc) {
+		input = stdin;
+	} else {
+		input = fopen(argv[optind], "r");
+		if (input == NULL) {
+			printf("Could not open %s", argv[optind]);
+			stats_log_end();
+			return 1;
+		}
+	}
 
-    lineptr = NULL;
-    while ((len = getline(&lineptr, &linelen, input)) != -1) {
-        lineptr[len-1] = '\0';
-        ks = ketama_get_server(lineptr, len, server->kc);
-        printf("%s\n", ks->ip);
-        free(lineptr);
-        lineptr = NULL;
-    }
+	lineptr = NULL;
+	while ((len = getline(&lineptr, &linelen, input)) != -1) {
+		lineptr[len-1] = '\0';
+		ks = ketama_get_server(lineptr, len, server->kc);
+		printf("%s\n", ks->ip);
+		free(lineptr);
+		lineptr = NULL;
+	}
 	stats_log_end();
 	return 0;
 }

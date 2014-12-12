@@ -179,9 +179,9 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server, struct addrinfo *a
 	listener->cb_conn = cb_conn;
 	listener->cb_recv = cb_recv;
 	listener->sd = socket(
-				addr->ai_family,
-				addr->ai_socktype,
-				addr->ai_protocol);
+		addr->ai_family,
+		addr->ai_socktype,
+		addr->ai_protocol);
 
 	memset(addr_string, 0, INET6_ADDRSTRLEN);
 	if (addr->ai_family == AF_INET) {

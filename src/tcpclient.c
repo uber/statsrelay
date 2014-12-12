@@ -28,12 +28,12 @@ static int tcpclient_default_callback(void *tc, enum tcpclient_event event, void
 
 static void tcpclient_set_state(tcpclient_t *client, enum tcpclient_state state) {
 	static const char *tcpclient_state_name[] = {
-		    "INIT", "CONNECTING", "BACKOFF", "CONNECTED", "TERMINATED"
+		"INIT", "CONNECTING", "BACKOFF", "CONNECTED", "TERMINATED"
 	};
 	stats_log("tcpclient[%s]: State transition %s -> %s",
-			client->name,
-			tcpclient_state_name[client->state],
-			tcpclient_state_name[state]);
+		  client->name,
+		  tcpclient_state_name[client->state],
+		  tcpclient_state_name[state]);
 	client->state = state;
 }
 
@@ -231,7 +231,7 @@ int tcpclient_connect(tcpclient_t *client, const char *host, const char *port, c
 
 			char hostname[TCPCLIENT_NAME_LEN - 8];
 			char servicename[8];
-			
+
 			if (getnameinfo(client->addr->ai_addr, client->addr->ai_addrlen, hostname, (TCPCLIENT_NAME_LEN - 8), servicename, 8, NI_NUMERICHOST) != 0) {
 				snprintf(client->name, TCPCLIENT_NAME_LEN, "%s/%s/%s", host, port, protocol);
 				stats_log("tcpclient: Unable to format backend address for logging, using config value %s (%s)", client->name, gai_strerror(errno));
