@@ -3,7 +3,7 @@ AM_LDFLAGS=-lcrypto -lev -lm $(GLIB_LDFLAGS)
 bin_PROGRAMS=statsrelay stathasher
 BASE_SOURCES=buffer.c hashlib.c ketama.c log.c protocol.c tcpclient.c tcpserver.c udpserver.c stats.c validate.c
 statsrelay_SOURCES=$(BASE_SOURCES) main.c
-stathasher_SOURCES=buffer.c ketama.c log.c protocol.c tcpclient.c tcpserver.c udpserver.c stats.c validate.c stathasher.c
+stathasher_SOURCES=hashlib.c hashring.c log.c stathasher.c
 
 check_PROGRAMS=test_stats test_hashring
 TESTS=$(check_PROGRAMS) tests/test_endtoend.py

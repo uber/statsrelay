@@ -24,8 +24,10 @@ int hashring_init(const char *hashfile,
 	size_t len = 0;
 	ssize_t read;
 
-	if ((g_hashring_backends = malloc(sizeof(void *) * expected_size)) == NULL) {
-		goto init_err;
+	if (expected_size) {
+		if ((g_hashring_backends = malloc(sizeof(void *) * expected_size)) == NULL) {
+			goto init_err;
+		}
 	}
 	while ((read = getline(&line, &len, hash_file)) != -1) {
 		// strip the trailing newline
@@ -41,10 +43,18 @@ int hashring_init(const char *hashfile,
 			stats_log("hashring: failed to alloc after reading line \"%s\"", line);
 			goto init_err;
 		}
+		if (!expected_size) {
+			void *new_hashring = realloc(
+				g_hashring_backends, sizeof(void *) * (g_hashring_size + 1));
+			if (new_hashring == NULL) {
+				goto init_err;
+			}
+			g_hashring_backends = new_hashring;
+		}
 		g_hashring_backends[g_hashring_size++] = obj;
 	}
 
-	if (g_hashring_size != expected_size) {
+	if (expected_size && g_hashring_size != expected_size) {
 		stats_log("hashring: fatal error in init, expected %d lines but actually saw %d lines",
 			  expected_size, g_hashring_size);
 		goto init_err;
