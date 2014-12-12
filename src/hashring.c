@@ -50,10 +50,12 @@ int hashring_init(const char *hashfile,
 		goto init_err;
 	}
 
+	free(line);
 	fclose(hash_file);
 	return 0;
 
 init_err:
+	free(line);
 	fclose(hash_file);
 	return 1;
 }
