@@ -86,7 +86,7 @@ size_t hashring_size(hashring_t ring) {
 void* hashring_choose(hashring_t ring,
 		      const char *key,
 		      uint32_t *shard_num) {
-	ring_size = hashring_size(ring)
+	const size_t ring_size = hashring_size(ring);
 	if (ring_size == 0) {
 		return NULL;
 	}
