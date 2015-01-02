@@ -22,7 +22,7 @@ static void print_help(const char *progname) {
 
 int main(int argc, char **argv) {
 	uint16_t port = 0;
-	const char *stat_names = NULL;
+	char *stat_names = NULL;
 	int option_index = 0;
 	char c;
 	FILE *fp = NULL;
