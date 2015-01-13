@@ -40,17 +40,11 @@ void* statsrelay_list_expand(list_t list) {
 }
 
 void statsrelay_list_destroy(list_t list) {
-        if (list == NULL) {
-		return;
-        }
 	free(list->data);
 	free(list);
 }
 
 void statsrelay_list_destroy_full(list_t list) {
-	if (list == NULL) {
-		return;
-	}
 	for (size_t i = 0; i < list->size; i++) {
 		free(list->data[i]);
 	}
