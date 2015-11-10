@@ -319,7 +319,9 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 			stats_log("stats: Error sending to backend %s", backend->key);
 			backend->failing = 1;
 		}
-		return 2;
+		// We will allow a backend to fail with a full queue
+		// and just continue operating. This breaks some backpressure
+		// mechanisms and should be fixed.
 	} else {
 		backend->failing = 0;
 	}
