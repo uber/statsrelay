@@ -31,6 +31,10 @@ typedef struct {
 	int failing;
 } stats_backend_t;
 
+typedef struct {
+	hashring_t ring;
+} stats_backend_group_t;
+
 struct stats_server_t {
 	struct ev_loop *loop;
 
@@ -44,7 +48,7 @@ struct stats_server_t {
 	size_t num_backends;
 	stats_backend_t **backend_list;
 
-	hashring_t ring;
+	list_t rings;
 	protocol_parser_t parser;
 	validate_line_validator_t validator;
 };
@@ -223,11 +227,16 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 	server->num_backends = 0;
 	server->backend_list = NULL;
 	server->config = config;
-	server->ring = hashring_load_from_config(
+	server->rings = statsrelay_list_new();
+	{
+		hashring_t ring = ring = hashring_load_from_config(
 		config->ring, server, make_backend, kill_backend);
-	if (server->ring == NULL) {
-		stats_error_log("hashring_load_from_config failed");
-		goto server_create_err;
+		if (ring == NULL) {
+			stats_error_log("hashring_load_from_config failed");
+			goto server_create_err;
+		}
+		statsrelay_list_expand(server->rings);
+		server->rings->data[server->rings->size - 1] = (void*)ring;
 	}
 
 	server->bytes_recv_udp = 0;
@@ -239,14 +248,19 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 	server->parser = parser;
 	server->validator = validator;
 
-	stats_debug_log("initialized server with %d backends, hashring size = %d",
-			server->num_backends, hashring_size(server->ring));
+	for (int i = 0; i < server->rings->size; i++)
+		stats_debug_log("initialized server %d with %d backends, hashring size = %d",
+				i,
+				server->num_backends,
+				hashring_size(((stats_backend_group_t*)server->rings->data[i])->ring));
 
 	return server;
 
 server_create_err:
 	if (server != NULL) {
-		hashring_dealloc(server->ring);
+		for (int i = 0; i < server->rings->size; i++)
+			hashring_dealloc(((stats_backend_group_t*)server->rings->data[i])->ring);
+		statsrelay_list_destroy(server->rings);
 		free(server);
 	}
 	return NULL;
@@ -257,7 +271,9 @@ size_t stats_num_backends(stats_server_t *server) {
 }
 
 void stats_server_reload(stats_server_t *server) {
-	hashring_dealloc(server->ring);
+	for (int i = 0; i < server->rings->size; i++)
+		hashring_dealloc(((stats_backend_group_t*)server->rings->data[i])->ring);
+	statsrelay_list_destroy(server->rings);
 
 	free(server->backend_list);
 	server->num_backends = 0;
@@ -307,27 +323,29 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 	memcpy(key_buffer, line, key_len);
 	key_buffer[key_len] = '\0';
 
-	stats_backend_t *backend = hashring_choose(ss->ring, key_buffer, NULL);
+	for (int i = 0; i < ss->rings->size; i++) {
+		stats_backend_t *backend = hashring_choose(((stats_backend_group_t*)server->rings->data[i])->ring, key_buffer, NULL);
 
-	if (backend == NULL) {
-		return 1;
-	}
-
-	if (tcpclient_sendall(&backend->client, line, len + 1) != 0) {
-		backend->dropped_lines++;
-		if (backend->failing == 0) {
-			stats_log("stats: Error sending to backend %s", backend->key);
-			backend->failing = 1;
+		if (backend == NULL) {
+			return 1;
 		}
-		// We will allow a backend to fail with a full queue
-		// and just continue operating. This breaks some backpressure
-		// mechanisms and should be fixed.
-	} else {
-		backend->failing = 0;
-	}
 
-	backend->bytes_queued += len + 1;
-	backend->relayed_lines++;
+		if (tcpclient_sendall(&backend->client, line, len + 1) != 0) {
+			backend->dropped_lines++;
+			if (backend->failing == 0) {
+				stats_log("stats: Error sending to backend %s", backend->key);
+				backend->failing = 1;
+			}
+			// We will allow a backend to fail with a full queue
+			// and just continue operating. This breaks some backpressure
+			// mechanisms and should be fixed.
+		} else {
+			backend->failing = 0;
+		}
+
+		backend->bytes_queued += len + 1;
+		backend->relayed_lines++;
+	}
 
 	return 0;
 }
@@ -560,7 +578,10 @@ udp_recv_err:
 }
 
 void stats_server_destroy(stats_server_t *server) {
-	hashring_dealloc(server->ring);
+	for (int i = 0; i < server->rings->size; i++) {
+		hashring_dealloc(((stats_backend_group_t*)server->rings->data[i])->ring);
+	}
+	statsrelay_list_destroy(server->rings);
 	free(server->backend_list);
 	server->num_backends = 0;
 	free(server);
