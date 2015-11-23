@@ -224,7 +224,7 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 	server->backend_list = NULL;
 	server->config = config;
 	server->ring = hashring_load_from_config(
-		config, server, make_backend, kill_backend);
+		config->ring, server, make_backend, kill_backend);
 	if (server->ring == NULL) {
 		stats_error_log("hashring_load_from_config failed");
 		goto server_create_err;

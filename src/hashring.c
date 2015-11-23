@@ -32,7 +32,7 @@ hashring_t hashring_init(void *alloc_data,
 	return ring;
 }
 
-hashring_t hashring_load_from_config(struct proto_config *pc,
+hashring_t hashring_load_from_config(list_t config_ring,
 				     void *alloc_data,
 				     hashring_alloc_func alloc_func,
 				     hashring_dealloc_func dealloc_func) {
@@ -41,8 +41,8 @@ hashring_t hashring_load_from_config(struct proto_config *pc,
 		stats_error_log("failed to hashring_init");
 		return NULL;
 	}
-	for (size_t i = 0; i < pc->ring->size; i++) {
-		if (!hashring_add(ring, pc->ring->data[i])) {
+	for (size_t i = 0; i < config_ring->size; i++) {
+		if (!hashring_add(ring, config_ring->data[i])) {
 			hashring_dealloc(ring);
 			return NULL;
 		}
