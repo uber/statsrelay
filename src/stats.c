@@ -236,7 +236,9 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 			goto server_create_err;
 		}
 		statsrelay_list_expand(server->rings);
-		server->rings->data[server->rings->size - 1] = (void*)ring;
+		stats_backend_group_t* group = malloc(sizeof(stats_backend_group_t));
+		group->ring = ring;
+		server->rings->data[server->rings->size - 1] = (void*)group;
 	}
 
 	server->bytes_recv_udp = 0;
@@ -258,8 +260,11 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 
 server_create_err:
 	if (server != NULL) {
-		for (int i = 0; i < server->rings->size; i++)
-			hashring_dealloc(((stats_backend_group_t*)server->rings->data[i])->ring);
+		for (int i = 0; i < server->rings->size; i++) {
+			stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
+			hashring_dealloc(group->ring);
+			free(group);
+		}
 		statsrelay_list_destroy(server->rings);
 		free(server);
 	}
@@ -271,8 +276,11 @@ size_t stats_num_backends(stats_server_t *server) {
 }
 
 void stats_server_reload(stats_server_t *server) {
-	for (int i = 0; i < server->rings->size; i++)
-		hashring_dealloc(((stats_backend_group_t*)server->rings->data[i])->ring);
+	for (int i = 0; i < server->rings->size; i++) {
+		stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
+		hashring_dealloc(group->ring);
+		free(group);
+	}
 	statsrelay_list_destroy(server->rings);
 
 	free(server->backend_list);
@@ -324,7 +332,8 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 	key_buffer[key_len] = '\0';
 
 	for (int i = 0; i < ss->rings->size; i++) {
-		stats_backend_t *backend = hashring_choose(((stats_backend_group_t*)server->rings->data[i])->ring, key_buffer, NULL);
+		stats_backend_group_t* group = (stats_backend_group_t*)ss->rings->data[i];
+		stats_backend_t *backend = hashring_choose(group->ring, key_buffer, NULL);
 
 		if (backend == NULL) {
 			return 1;
@@ -579,7 +588,9 @@ udp_recv_err:
 
 void stats_server_destroy(stats_server_t *server) {
 	for (int i = 0; i < server->rings->size; i++) {
-		hashring_dealloc(((stats_backend_group_t*)server->rings->data[i])->ring);
+		stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
+		hashring_dealloc(group->ring);
+		free(group);
 	}
 	statsrelay_list_destroy(server->rings);
 	free(server->backend_list);
