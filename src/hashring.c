@@ -93,6 +93,9 @@ void* hashring_choose(struct hashring *ring,
 	if (ring_size == 0) {
 		return NULL;
 	}
+	if (ring_size == 1) {
+		return ring->backends->data[0];
+	}
 	const uint32_t index = stats_hash(key, strlen(key), ring_size);
 	if (shard_num != NULL) {
 		*shard_num = index;
