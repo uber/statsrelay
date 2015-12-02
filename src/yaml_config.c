@@ -34,6 +34,9 @@ static void init_proto_config(struct proto_config *protoc) {
 	protoc->enable_tcp_cork = true;
 	protoc->max_send_queue = 134217728;
 	protoc->ring = statsrelay_list_new();
+	protoc->dupl.ring = statsrelay_list_new();
+	protoc->dupl.prefix = NULL;
+	protoc->dupl.suffix = NULL;
 }
 
 struct config* parse_config(FILE *input) {

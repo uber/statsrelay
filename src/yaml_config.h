@@ -7,6 +7,12 @@
 #include <stdint.h>
 #include <stdio.h>
 
+struct duplicate_config {
+	char* prefix;
+	char* suffix;
+	list_t ring;
+};
+
 struct proto_config {
 	bool initialized;
 	char *bind;
@@ -14,6 +20,7 @@ struct proto_config {
 	bool enable_tcp_cork;
 	uint64_t max_send_queue;
 	list_t ring;
+	struct duplicate_config dupl;
 };
 
 struct config {
