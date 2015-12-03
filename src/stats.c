@@ -259,6 +259,7 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 		server->rings->data[server->rings->size - 1] = (void*)group;
 
 		if (config->dupl.ring->size >= 1) {
+			stats_error_log("Loading a duplicate configuration");
 			ring = hashring_load_from_config(config->dupl.ring, server, make_backend, kill_backend);
 			if (ring == NULL) {
 				stats_error_log("hashring_load_from_config for duplicate ring failed");
@@ -268,10 +269,18 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 			group = malloc(sizeof(stats_backend_group_t));
 			memset(group, 0, sizeof(stats_backend_group_t));
 			group->ring = ring;
+
 			group->prefix = config->dupl.prefix;
-			group->prefix_len = strlen(group->prefix);
+			if (group->prefix)
+				group->prefix_len = strlen(group->prefix);
+			else
+				group->prefix_len = 0;
+
 			group->suffix = config->dupl.suffix;
-			group->suffix_len = strlen(group->suffix);
+			if (group->suffix)
+				group->suffix_len = strlen(group->suffix);
+			else
+				group->suffix_len = 0;
 
 			server->rings->data[server->rings->size - 1] = (void*)group;
 		}
@@ -384,6 +393,7 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 			}
 
 			strcpy(linebuf, key_buffer);
+			linebuf += key_len;
 
 			if (group->suffix) {
 				strcpy(linebuf, group->suffix);
@@ -391,7 +401,8 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 			}
 
 			/*                                copy \n\0 from line */
-			memcpy(linebuf, &line[key_len], len + 2);
+			memcpy(linebuf, &line[key_len], (len + 2) - key_len);
+
 			/* Reset position */
 			linebuf = prefix_line_buffer;
 		}

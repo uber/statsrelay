@@ -30,7 +30,7 @@ static bool get_bool_orelse(json_t* json, const char* key, bool def) {
     return json_is_true(v) ? true : false;
 }
 
-static const char* get_string(const json_t* json, const char* key) {
+static char* get_string(const json_t* json, const char* key) {
     json_t* j = json_object_get(json, key);
     if (key == NULL)
 	return NULL;
@@ -39,7 +39,10 @@ static const char* get_string(const json_t* json, const char* key) {
 	return NULL;
     }
     const char* str = json_string_value(j);
-    return str;
+    if (str == NULL)
+	return NULL;
+    else
+	return strdup(str);
 }
 
 static int get_int_orelse(json_t* json, const char* key, int def) {
@@ -53,14 +56,18 @@ static int get_int_orelse(json_t* json, const char* key, int def) {
 }
 
 static void parse_server_list(const json_t* jshards, list_t ring) {
-    if (jshards == NULL)
+    if (jshards == NULL) {
+	stats_error_log("no servers specified for routing");
 	return;
+    }
 
     const json_t* jserver = NULL;
     size_t index;
     json_array_foreach(jshards, index, jserver) {
 	statsrelay_list_expand(ring);
-	ring->data[ring->size - 1] = strdup(json_string_value(jserver));
+	char* serverline = strdup(json_string_value(jserver));
+	stats_log("adding server %s", serverline);
+	ring->data[ring->size - 1] = serverline;
     }
 }
 
@@ -69,11 +76,11 @@ static int parse_proto(json_t* json, struct proto_config* config) {
     config->enable_validation = get_bool_orelse(json, "validate", true);
     config->enable_tcp_cork = get_bool_orelse(json, "tcp_cork", true);
 
-    const char* jbind = get_string(json, "bind");
+    char* jbind = get_string(json, "bind");
     if (jbind != NULL) {
 	if (config->bind)
 	    free(config->bind);
-	config->bind = strdup(jbind);
+	config->bind = jbind;
     }
 
     config->max_send_queue = get_int_orelse(json, "max_send_queue", 134217728);
@@ -83,11 +90,15 @@ static int parse_proto(json_t* json, struct proto_config* config) {
 
     const json_t* duplicate = json_object_get(json, "duplicate_to");
     if (duplicate != NULL) {
+
 	config->dupl.prefix = get_string(duplicate, "prefix");
 	config->dupl.suffix = get_string(duplicate, "suffix");
 
+	stats_log("adding duplicate cluster with prefix '%s' and suffix '%s'", config->dupl.prefix, config->dupl.suffix);
+
 	const json_t* jdshards = json_object_get(duplicate, "shard_map");
 	parse_server_list(jdshards, config->dupl.ring);
+	stats_log("added duplicate cluster with %d servers", config->dupl.ring->size);
     }
 
     return 0;
