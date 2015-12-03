@@ -32,6 +32,7 @@ struct config {
 static const char default_config[] = "/etc/statsrelay.yaml";
 
 struct config* parse_config(FILE *input);
+struct config* parse_json_config(FILE *input);
 
 // release the memory associated with a config
 void destroy_config(struct config *);
