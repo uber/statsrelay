@@ -21,6 +21,11 @@
 
 #define MAX_UDP_LENGTH 65536
 
+/**
+ * Static stack space for a single statsd key value
+ */
+#define KEY_BUFFER 8192
+
 typedef struct {
 	tcpclient_t client;
 	char *key;
@@ -32,6 +37,10 @@ typedef struct {
 } stats_backend_t;
 
 typedef struct {
+	const char* prefix;
+	size_t prefix_len;
+	const char* suffix;
+	size_t suffix_len;
 	hashring_t ring;
 } stats_backend_group_t;
 
@@ -229,7 +238,14 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 	server->config = config;
 	server->rings = statsrelay_list_new();
 	{
-		hashring_t ring = ring = hashring_load_from_config(
+		/* First load the primary shard map from the configuration,
+		   then load the duplicate shard map with extra parameters.
+
+		   Once YAML config is removed this can become a non-specialized
+		   loop.
+		*/
+
+		hashring_t ring = hashring_load_from_config(
 		config->ring, server, make_backend, kill_backend);
 		if (ring == NULL) {
 			stats_error_log("hashring_load_from_config failed");
@@ -237,8 +253,28 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 		}
 		statsrelay_list_expand(server->rings);
 		stats_backend_group_t* group = malloc(sizeof(stats_backend_group_t));
+		memset(group, 0, sizeof(stats_backend_group_t));
+
 		group->ring = ring;
 		server->rings->data[server->rings->size - 1] = (void*)group;
+
+		if (config->dupl.ring->size >= 1) {
+			ring = hashring_load_from_config(config->dupl.ring, server, make_backend, kill_backend);
+			if (ring == NULL) {
+				stats_error_log("hashring_load_from_config for duplicate ring failed");
+				goto server_create_err;
+			}
+			statsrelay_list_expand(server->rings);
+			group = malloc(sizeof(stats_backend_group_t));
+			memset(group, 0, sizeof(stats_backend_group_t));
+			group->ring = ring;
+			group->prefix = config->dupl.prefix;
+			group->prefix_len = strlen(group->prefix);
+			group->suffix = config->dupl.suffix;
+			group->suffix_len = strlen(group->suffix);
+
+			server->rings->data[server->rings->size - 1] = (void*)group;
+		}
 	}
 
 	server->bytes_recv_udp = 0;
@@ -321,7 +357,7 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 		}
 	}
 
-	static char key_buffer[8192];
+	static char key_buffer[KEY_BUFFER];
 	size_t key_len = ss->parser(line, len);
 	if (key_len == 0) {
 		ss->malformed_lines++;
@@ -334,12 +370,37 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 	for (int i = 0; i < ss->rings->size; i++) {
 		stats_backend_group_t* group = (stats_backend_group_t*)ss->rings->data[i];
 		stats_backend_t *backend = hashring_choose(group->ring, key_buffer, NULL);
+		/* Allow the line to be modified if needed */
+		char* linebuf = (char*)line;
+
+		if (group->prefix != NULL || group->suffix != NULL) {
+			static char prefix_line_buffer[MAX_UDP_LENGTH + 1];
+			linebuf = prefix_line_buffer;
+			linebuf[0] = '\0';
+
+			if (group->prefix) {
+				strcpy(linebuf, group->prefix);
+				linebuf += group->prefix_len;
+			}
+
+			strcpy(linebuf, key_buffer);
+
+			if (group->suffix) {
+				strcpy(linebuf, group->suffix);
+				linebuf += group->suffix_len;
+			}
+
+			/*                                copy \n\0 from line */
+			memcpy(linebuf, &line[key_len], len + 2);
+			/* Reset position */
+			linebuf = prefix_line_buffer;
+		}
 
 		if (backend == NULL) {
 			return 1;
 		}
 
-		if (tcpclient_sendall(&backend->client, line, len + 1) != 0) {
+		if (tcpclient_sendall(&backend->client, linebuf, len + 1) != 0) {
 			backend->dropped_lines++;
 			if (backend->failing == 0) {
 				stats_log("stats: Error sending to backend %s", backend->key);

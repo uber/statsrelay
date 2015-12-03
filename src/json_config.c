@@ -52,16 +52,44 @@ static int get_int_orelse(json_t* json, const char* key, int def) {
     return (int)json_integer_value(v);
 }
 
+static void parse_server_list(const json_t* jshards, list_t ring) {
+    if (jshards == NULL)
+	return;
+
+    const json_t* jserver = NULL;
+    size_t index;
+    json_array_foreach(jshards, index, jserver) {
+	statsrelay_list_expand(ring);
+	ring->data[ring->size - 1] = strdup(json_string_value(jserver));
+    }
+}
+
 static int parse_proto(json_t* json, struct proto_config* config) {
     config->initialized = true;
     config->enable_validation = get_bool_orelse(json, "validate", true);
     config->enable_tcp_cork = get_bool_orelse(json, "tcp_cork", true);
 
     const char* jbind = get_string(json, "bind");
-    if (jbind != NULL)
+    if (jbind != NULL) {
+	if (config->bind)
+	    free(config->bind);
 	config->bind = strdup(jbind);
+    }
 
     config->max_send_queue = get_int_orelse(json, "max_send_queue", 134217728);
+
+    const json_t* jshards = json_object_get(json, "shard_map");
+    parse_server_list(jshards, config->ring);
+
+    const json_t* duplicate = json_object_get(json, "duplicate_to");
+    if (duplicate != NULL) {
+	config->dupl.prefix = get_string(duplicate, "prefix");
+	config->dupl.suffix = get_string(duplicate, "suffix");
+
+	const json_t* jdshards = json_object_get(duplicate, "shard_map");
+	parse_server_list(jdshards, config->dupl.ring);
+    }
+
     return 0;
 }
 
