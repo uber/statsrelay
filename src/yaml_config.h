@@ -20,7 +20,7 @@ struct proto_config {
 	bool enable_tcp_cork;
 	uint64_t max_send_queue;
 	list_t ring;
-	struct duplicate_config dupl;
+	list_t dupl; /* struct duplicate_config */
 };
 
 struct config {

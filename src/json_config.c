@@ -16,9 +16,7 @@ static void init_proto_config(struct proto_config *protoc) {
 	protoc->enable_tcp_cork = true;
 	protoc->max_send_queue = 134217728;
 	protoc->ring = statsrelay_list_new();
-	protoc->dupl.ring = statsrelay_list_new();
-	protoc->dupl.prefix = NULL;
-	protoc->dupl.suffix = NULL;
+	protoc->dupl = statsrelay_list_new();
 }
 
 static bool get_bool_orelse(json_t* json, const char* key, bool def) {
@@ -71,6 +69,26 @@ static void parse_server_list(const json_t* jshards, list_t ring) {
     }
 }
 
+static void parse_duplicate_to(const json_t* duplicate, struct proto_config* config) {
+    if (duplicate != NULL) {
+	struct duplicate_config* dupl = calloc(1, sizeof(struct duplicate_config));
+	dupl->ring = statsrelay_list_new();
+	dupl->prefix = get_string(duplicate, "prefix");
+	dupl->suffix = get_string(duplicate, "suffix");
+
+	stats_log("adding duplicate cluster with prefix '%s' and suffix '%s'",
+		  dupl->prefix, dupl->suffix);
+
+	const json_t* jdshards = json_object_get(duplicate, "shard_map");
+	parse_server_list(jdshards, dupl->ring);
+	stats_log("added duplicate cluster with %d servers", dupl->ring->size);
+
+	statsrelay_list_expand(config->dupl);
+	config->dupl->data[config->dupl->size - 1] = dupl;
+    }
+
+}
+
 static int parse_proto(json_t* json, struct proto_config* config) {
     config->initialized = true;
     config->enable_validation = get_bool_orelse(json, "validate", true);
@@ -89,18 +107,15 @@ static int parse_proto(json_t* json, struct proto_config* config) {
     parse_server_list(jshards, config->ring);
 
     const json_t* duplicate = json_object_get(json, "duplicate_to");
-    if (duplicate != NULL) {
-
-	config->dupl.prefix = get_string(duplicate, "prefix");
-	config->dupl.suffix = get_string(duplicate, "suffix");
-
-	stats_log("adding duplicate cluster with prefix '%s' and suffix '%s'", config->dupl.prefix, config->dupl.suffix);
-
-	const json_t* jdshards = json_object_get(duplicate, "shard_map");
-	parse_server_list(jdshards, config->dupl.ring);
-	stats_log("added duplicate cluster with %d servers", config->dupl.ring->size);
+    if (json_is_object(duplicate)) {
+	parse_duplicate_to(duplicate, config);
+    } else if (json_is_array(duplicate)) {
+	size_t index;
+	const json_t* duplicate_v;
+	json_array_foreach(duplicate, index, duplicate_v) {
+	    parse_duplicate_to(duplicate_v, config);
+	}
     }
-
     return 0;
 }
 

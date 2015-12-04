@@ -258,9 +258,10 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 		group->ring = ring;
 		server->rings->data[server->rings->size - 1] = (void*)group;
 
-		if (config->dupl.ring->size >= 1) {
+		for (int dupl_i = 0; dupl_i < config->dupl->size; dupl_i++) {
+			struct duplicate_config *dupl = config->dupl->data[dupl_i];
 			stats_error_log("Loading a duplicate configuration");
-			ring = hashring_load_from_config(config->dupl.ring, server, make_backend, kill_backend);
+			ring = hashring_load_from_config(dupl->ring, server, make_backend, kill_backend);
 			if (ring == NULL) {
 				stats_error_log("hashring_load_from_config for duplicate ring failed");
 				goto server_create_err;
@@ -270,13 +271,13 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 			memset(group, 0, sizeof(stats_backend_group_t));
 			group->ring = ring;
 
-			group->prefix = config->dupl.prefix;
+			group->prefix = dupl->prefix;
 			if (group->prefix)
 				group->prefix_len = strlen(group->prefix);
 			else
 				group->prefix_len = 0;
 
-			group->suffix = config->dupl.suffix;
+			group->suffix = dupl->suffix;
 			if (group->suffix)
 				group->suffix_len = strlen(group->suffix);
 			else
