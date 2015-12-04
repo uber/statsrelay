@@ -405,6 +405,7 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 
 			/* Reset position */
 			linebuf = prefix_line_buffer;
+			len += group->prefix_len + group->suffix_len;
 		}
 
 		if (backend == NULL) {
