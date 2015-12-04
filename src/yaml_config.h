@@ -8,8 +8,8 @@
 #include <stdio.h>
 
 struct duplicate_config {
-	const char* prefix;
-	const char* suffix;
+	char* prefix;
+	char* suffix;
 	list_t ring;
 };
 

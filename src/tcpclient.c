@@ -399,6 +399,7 @@ void tcpclient_destroy(tcpclient_t *client, int drop_queue) {
 	close(client->sd);
 	if (client->addr != NULL) {
 		freeaddrinfo(client->addr);
+		client->addr = NULL;
 	}
 	buffer_destroy(&client->send_queue);
 }
