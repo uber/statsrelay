@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <time.h>
 
+#include "./filter.h"
 #include "./hashring.h"
 #include "./buffer.h"
 #include "./log.h"
@@ -41,6 +42,8 @@ typedef struct {
 	size_t prefix_len;
 	const char* suffix;
 	size_t suffix_len;
+
+	filter_t* ingress_filter;
 	hashring_t ring;
 } stats_backend_group_t;
 
@@ -229,6 +232,38 @@ static void kill_backend(stats_backend_t *backend) {
 	free(backend);
 }
 
+static void group_destroy(stats_backend_group_t* group) {
+	hashring_dealloc(group->ring);
+	if (group->ingress_filter) {
+		filter_free(group->ingress_filter);
+		group->ingress_filter = NULL;
+	}
+	free(group);
+}
+
+static int group_filter_create(struct duplicate_config* dupl, stats_backend_group_t* group) {
+	filter_t* filter;
+	int st = filter_re_create(&filter, dupl->ingress_filter);
+	if (!st) { return st; }
+	group->ingress_filter = filter;
+	return 0;
+}
+
+static void group_prefix_create(struct duplicate_config* dupl, stats_backend_group_t* group) {
+	group->prefix = dupl->prefix;
+	if (group->prefix)
+		group->prefix_len = strlen(group->prefix);
+	else
+		group->prefix_len = 0;
+
+	group->suffix = dupl->suffix;
+	if (group->suffix)
+		group->suffix_len = strlen(group->suffix);
+	else
+		group->suffix_len = 0;
+
+}
+
 stats_server_t *stats_server_create(struct ev_loop *loop,
 				    struct proto_config *config,
 				    protocol_parser_t parser,
@@ -279,17 +314,12 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 			memset(group, 0, sizeof(stats_backend_group_t));
 			group->ring = ring;
 
-			group->prefix = dupl->prefix;
-			if (group->prefix)
-				group->prefix_len = strlen(group->prefix);
-			else
-				group->prefix_len = 0;
+			group_prefix_create(dupl, group);
 
-			group->suffix = dupl->suffix;
-			if (group->suffix)
-				group->suffix_len = strlen(group->suffix);
-			else
-				group->suffix_len = 0;
+			if (dupl->ingress_filter) {
+				if (group_filter_create(dupl, group) != 0)
+					goto server_create_err;
+			}
 
 			server->rings->data[server->rings->size - 1] = (void*)group;
 		}
@@ -305,7 +335,7 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 	server->validator = validator;
 
 	for (int i = 0; i < server->rings->size; i++)
-		stats_debug_log("initialized server %d with %d backends, hashring size = %d",
+		stats_debug_log("initialized server %d (%d total backends in system), hashring size = %d",
 				i,
 				server->num_backends,
 				hashring_size(((stats_backend_group_t*)server->rings->data[i])->ring));
@@ -316,8 +346,7 @@ server_create_err:
 	if (server != NULL) {
 		for (int i = 0; i < server->rings->size; i++) {
 			stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
-			hashring_dealloc(group->ring);
-			free(group);
+			group_destroy(group);
 		}
 		statsrelay_list_destroy(server->rings);
 		free(server);
@@ -332,8 +361,7 @@ size_t stats_num_backends(stats_server_t *server) {
 void stats_server_reload(stats_server_t *server) {
 	for (int i = 0; i < server->rings->size; i++) {
 		stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
-		hashring_dealloc(group->ring);
-		free(group);
+		group_destroy(group);
 	}
 	statsrelay_list_destroy(server->rings);
 
@@ -388,6 +416,12 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 	for (int i = 0; i < ss->rings->size; i++) {
 		stats_backend_group_t* group = (stats_backend_group_t*)ss->rings->data[i];
 		stats_backend_t *backend = hashring_choose(group->ring, key_buffer, NULL);
+
+		if (backend == NULL) {
+			/* No backend? No problem. Just skip doing anything */
+			continue;
+		}
+
 		/* Allow the line to be modified if needed */
 		char* linebuf = (char*)line;
 		int send_len = len;
@@ -416,10 +450,6 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 			/* Reset position */
 			linebuf = prefix_line_buffer;
 			send_len += group->prefix_len + group->suffix_len;
-		}
-
-		if (backend == NULL) {
-			return 1;
 		}
 
 		if (tcpclient_sendall(&backend->client, linebuf, send_len + 1) != 0) {
@@ -672,8 +702,7 @@ udp_recv_err:
 void stats_server_destroy(stats_server_t *server) {
 	for (int i = 0; i < server->rings->size; i++) {
 		stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
-		hashring_dealloc(group->ring);
-		free(group);
+		group_destroy(group);
 	}
 
 	statsrelay_list_destroy(server->rings);
