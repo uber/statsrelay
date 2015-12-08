@@ -8,8 +8,20 @@
 #include <stdio.h>
 
 struct duplicate_config {
+	/**
+	 * A string to prepend/append to each metric going through a duplicate block.
+	 * No dot (.) is added - this is a raw string.
+	 */
 	char* prefix;
 	char* suffix;
+	/**
+	 * A PCRE compatible regex which will only allow these metrics through this
+	 * duplicate endpoint.
+	 */
+	char* ingress_filter;
+	/**
+	 * A list of host:port combos where to forward traffic, consistently hashed.
+	 */
 	list_t ring;
 };
 
