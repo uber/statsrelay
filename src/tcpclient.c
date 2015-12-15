@@ -248,31 +248,32 @@ int tcpclient_connect(tcpclient_t *client, const char *host, const char *port, c
 
 	if (client->state == STATE_INIT) {
 		// Resolve address, create socket, set nonblocking, setup callbacks, fire connect
-		if (client->addr == NULL) {
-			// We only know about tcp and udp, so if we get something unexpected just
-			// default to tcp
-			if (protocol != NULL && strncmp(protocol, "udp", 3) == 0) {
-				client->socktype = SOCK_DGRAM;
-			} else {
-				protocol = "tcp";
-				client->socktype = SOCK_STREAM;
-			}
-			memset(&hints, 0, sizeof(hints));
-			hints.ai_family = AF_UNSPEC;
-			hints.ai_socktype = client->socktype;
-			hints.ai_flags = AI_PASSIVE;
-			if (getaddrinfo(host, port, &hints, &addr) != 0) {
-				stats_error_log("tcpclient: Error resolving backend address %s: %s", host, gai_strerror(errno));
-				client->last_error = time(NULL);
-				tcpclient_set_state(client, STATE_BACKOFF);
-				client->callback_error(client, EVENT_ERROR, client->callback_context, NULL, 0);
-				return 3;
-			}
-			client->addr = addr;
-			snprintf(client->name, TCPCLIENT_NAME_LEN, "%s/%s/%s", host, port, protocol);
-		} else {
-			addr = client->addr;
+		if (client->addr) { // Free prior cache always
+			freeaddrinfo(client->addr);
+			client->addr = NULL;
+
 		}
+		// We only know about tcp and udp, so if we get something unexpected just
+		// default to tcp
+		if (protocol != NULL && strncmp(protocol, "udp", 3) == 0) {
+			client->socktype = SOCK_DGRAM;
+		} else {
+			protocol = "tcp";
+			client->socktype = SOCK_STREAM;
+		}
+		memset(&hints, 0, sizeof(hints));
+		hints.ai_family = AF_UNSPEC;
+		hints.ai_socktype = client->socktype;
+		hints.ai_flags = AI_PASSIVE;
+		if (getaddrinfo(host, port, &hints, &addr) != 0) {
+			stats_error_log("tcpclient: Error resolving backend address %s: %s", host, gai_strerror(errno));
+			client->last_error = time(NULL);
+			tcpclient_set_state(client, STATE_BACKOFF);
+			client->callback_error(client, EVENT_ERROR, client->callback_context, NULL, 0);
+			return 3;
+		}
+		client->addr = addr;
+		snprintf(client->name, TCPCLIENT_NAME_LEN, "%s/%s/%s", host, port, protocol);
 
 		if ((sd = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol)) < 0) {
 			stats_error_log("tcpclient[%s]: Unable to create socket: %s", client->name, strerror(errno));
@@ -291,6 +292,8 @@ int tcpclient_connect(tcpclient_t *client, const char *host, const char *port, c
 				stats_error_log("failed to set TCP_CORK");
 			}
 		}
+#else
+		stats_error_log("no TCP_CORK available");
 #endif
 		client->sd = sd;
 
