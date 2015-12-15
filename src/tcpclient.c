@@ -268,7 +268,7 @@ int tcpclient_connect(tcpclient_t *client) {
 		if (client->protocol != NULL && strncmp(client->protocol, "udp", 3) == 0) {
 			client->socktype = SOCK_DGRAM;
 		} else {
-			protocol = "tcp";
+			client->protocol = "tcp";
 			client->socktype = SOCK_STREAM;
 		}
 		memset(&hints, 0, sizeof(hints));
@@ -276,14 +276,14 @@ int tcpclient_connect(tcpclient_t *client) {
 		hints.ai_socktype = client->socktype;
 		hints.ai_flags = AI_PASSIVE;
 		if (getaddrinfo(client->host, client->port, &hints, &addr) != 0) {
-			stats_error_log("tcpclient: Error resolving backend address %s: %s", host, gai_strerror(errno));
+			stats_error_log("tcpclient: Error resolving backend address %s: %s", client->host, gai_strerror(errno));
 			client->last_error = time(NULL);
 			tcpclient_set_state(client, STATE_BACKOFF);
 			client->callback_error(client, EVENT_ERROR, client->callback_context, NULL, 0);
 			return 3;
 		}
 		client->addr = addr;
-		snprintf(client->name, TCPCLIENT_NAME_LEN, "%s/%s/%s", host, port, protocol);
+		snprintf(client->name, TCPCLIENT_NAME_LEN, "%s/%s/%s", client->host, client->port, client->protocol);
 
 		if ((sd = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol)) < 0) {
 			stats_error_log("tcpclient[%s]: Unable to create socket: %s", client->name, strerror(errno));

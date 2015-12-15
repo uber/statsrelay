@@ -63,6 +63,7 @@ typedef struct tcpclient_t {
 
 	char name[TCPCLIENT_NAME_LEN];
 
+	struct addrinfo *addr;
 	char* host;
 	char* port;
 	char* protocol;
