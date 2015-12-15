@@ -62,7 +62,11 @@ typedef struct tcpclient_t {
 	io_watcher_t write_watcher;
 
 	char name[TCPCLIENT_NAME_LEN];
-	struct addrinfo *addr;
+
+	char* host;
+	char* port;
+	char* protocol;
+
 	buffer_t send_queue;
 	enum tcpclient_state state;
 	time_t last_error;
@@ -77,15 +81,15 @@ typedef struct tcpclient_t {
 int tcpclient_init(tcpclient_t *client,
 		   struct ev_loop *loop,
 		   void *callback_connect,
+		   const char* host,
+		   const char* port,
+		   const char* protocol,
 		   struct proto_config *config);
 
 void tcpclient_set_sent_callback(tcpclient_t *client,
 				 tcpclient_callback callback);
 
-int tcpclient_connect(tcpclient_t *client,
-		      const char *host,
-		      const char *port,
-		      const char *protocol);
+int tcpclient_connect(tcpclient_t *client);
 
 int tcpclient_sendall(tcpclient_t *client,
 		      const char *buf,

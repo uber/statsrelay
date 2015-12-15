@@ -178,6 +178,9 @@ static void* make_backend(const char *host_and_port, void *data) {
 	if (tcpclient_init(&backend->client,
 			   server->loop,
 			   backend,
+			   host,
+			   port,
+			   protocol,
 			   server->config)) {
 		stats_log("stats: failed to tcpclient_init");
 		goto make_err;
