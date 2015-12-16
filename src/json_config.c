@@ -75,7 +75,7 @@ static void parse_duplicate_to(const json_t* duplicate, struct proto_config* con
 	dupl->ring = statsrelay_list_new();
 	dupl->prefix = get_string(duplicate, "prefix");
 	dupl->suffix = get_string(duplicate, "suffix");
-	dupl->ingress_filter = get_string(duplicate, "accept");
+	dupl->ingress_filter = get_string(duplicate, "input_filter");
 
 	stats_log("adding duplicate cluster with prefix '%s' and suffix '%s'",
 		  dupl->prefix, dupl->suffix);

@@ -45,6 +45,10 @@ typedef struct {
 
 	filter_t* ingress_filter;
 	hashring_t ring;
+
+	/* Stats */
+	uint64_t relayed_lines;
+	uint64_t filtered_lines;
 } stats_backend_group_t;
 
 struct stats_server_t {
@@ -243,7 +247,7 @@ static void group_destroy(stats_backend_group_t* group) {
 
 static int group_filter_create(struct duplicate_config* dupl, stats_backend_group_t* group) {
 	filter_t* filter;
-	int st = filter_re_create(&filter, dupl->ingress_filter);
+	int st = filter_re_create(&filter, dupl->ingress_filter, NULL);
 	if (!st) { return st; }
 	group->ingress_filter = filter;
 	return 0;
@@ -295,8 +299,7 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 			goto server_create_err;
 		}
 		statsrelay_list_expand(server->rings);
-		stats_backend_group_t* group = malloc(sizeof(stats_backend_group_t));
-		memset(group, 0, sizeof(stats_backend_group_t));
+		stats_backend_group_t* group = calloc(1, sizeof(stats_backend_group_t));
 
 		group->ring = ring;
 		server->rings->data[server->rings->size - 1] = (void*)group;
@@ -422,6 +425,15 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 			continue;
 		}
 
+		/* If we have a filter, lets run it */
+		if (group->ingress_filter) {
+			bool res = filter_exec(group->ingress_filter, key_buffer, key_len);
+			if (!res) { /* Filter didn't match, don't process this backend */
+				group->filtered_lines++;
+				continue;
+			}
+		}
+
 		/* Allow the line to be modified if needed */
 		char* linebuf = (char*)line;
 		int send_len = len;
@@ -464,6 +476,7 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 		} else {
 			backend->failing = 0;
 		}
+		group->relayed_lines++;
 
 		backend->bytes_queued += len + 1;
 		backend->relayed_lines++;
@@ -508,6 +521,18 @@ void stats_send_statistics(stats_session_t *session) {
 		snprintf((char *)buffer_tail(response), buffer_spacecount(response),
 		"global malformed_lines gauge %" PRIu64 "\n",
 		session->server->malformed_lines));
+
+	for (int i = 0; i < session->server->rings->size; i++) {
+		stats_backend_group_t* group = (stats_backend_group_t*)session->server->rings->data[i];
+		buffer_produced(response,
+				snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+					 "group:%i filtered_lines gauge %" PRIu64 "\n",
+					 i, group->filtered_lines));
+		buffer_produced(response,
+				snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+					 "group:%i relayed_lines gauge %" PRIu64 "\n",
+					 i, group->relayed_lines));
+	}
 
 	for (size_t i = 0; i < session->server->num_backends; i++) {
 		backend = session->server->backend_list[i];
