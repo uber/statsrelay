@@ -248,7 +248,11 @@ static void group_destroy(stats_backend_group_t* group) {
 static int group_filter_create(struct duplicate_config* dupl, stats_backend_group_t* group) {
 	filter_t* filter;
 	int st = filter_re_create(&filter, dupl->ingress_filter, NULL);
-	if (!st) { return st; }
+	if (st != 0) {
+		stats_error_log("filter creation failed");
+		return st;
+	}
+	stats_log("created ingress filter");
 	group->ingress_filter = filter;
 	return 0;
 }
