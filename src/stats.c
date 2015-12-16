@@ -317,18 +317,16 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 				goto server_create_err;
 			}
 			statsrelay_list_expand(server->rings);
-			group = malloc(sizeof(stats_backend_group_t));
-			memset(group, 0, sizeof(stats_backend_group_t));
-			group->ring = ring;
+			group = calloc(1, sizeof(stats_backend_group_t));
+			server->rings->data[server->rings->size - 1] = (void*)group;
 
+			group->ring = ring;
 			group_prefix_create(dupl, group);
 
 			if (dupl->ingress_filter) {
 				if (group_filter_create(dupl, group) != 0)
 					goto server_create_err;
 			}
-
-			server->rings->data[server->rings->size - 1] = (void*)group;
 		}
 	}
 
@@ -448,7 +446,8 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 			linebuf[0] = '\0';
 
 			if (group->prefix) {
-				strcpy(linebuf, group->prefix);
+				strncpy(linebuf, group->prefix, MAX_UDP_LENGTH);
+				prefix_line_buffer[MAX_UDP_LENGTH] = '\0';
 				linebuf += group->prefix_len;
 			}
 
@@ -456,7 +455,8 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 			linebuf += key_len;
 
 			if (group->suffix) {
-				strcpy(linebuf, group->suffix);
+				strncpy(linebuf, group->suffix, MAX_UDP_LENGTH);
+				prefix_line_buffer[MAX_UDP_LENGTH] = '\0';
 				linebuf += group->suffix_len;
 			}
 
