@@ -8,12 +8,17 @@
 #define STATSRELAY_LOG_BUF_SIZE 256
 
 static bool g_verbose = 0;
+static bool g_syslog = true;
 static enum statsrelay_log_level g_level;
 static int fmt_buf_size = 0;
 static char *fmt_buf = NULL;
 
 void stats_log_verbose(bool verbose) {
 	g_verbose = verbose;
+}
+
+void stats_log_syslog(bool syslog) {
+	g_syslog = syslog;
 }
 
 void stats_set_log_level(enum statsrelay_log_level level) {
@@ -73,7 +78,8 @@ void stats_vlog(const char *prefix,
 		}
 	}
 
-	syslog(LOG_INFO, fmt_buf, fmt_len);
+	if (g_syslog)
+		syslog(LOG_INFO, fmt_buf, fmt_len);
 
 	if (fmt_buf_size > STATSRELAY_LOG_BUF_SIZE) {
 		if ((np = realloc(fmt_buf, STATSRELAY_LOG_BUF_SIZE)) == NULL) {

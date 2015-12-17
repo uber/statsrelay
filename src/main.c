@@ -27,6 +27,7 @@ static struct option long_options[] = {
 	{"version",		no_argument,		NULL, 'V'},
 	{"log-level",		required_argument,	NULL, 'l'},
 	{"help",		no_argument,		NULL, 'h'},
+	{"no-syslog",           no_argument,            NULL, 'S'},
 };
 
 static void graceful_shutdown(struct ev_loop *loop, ev_signal *w, int revents) {
@@ -73,6 +74,7 @@ static struct config *load_config(const char *filename) {
 static void print_help(const char *argv0) {
 	printf("Usage: %s [options]\n"
 		"  -h, --help                   Display this message\n"
+	        "  -S, --no-syslog              Do not write to syslog, only stderr\n"
 		"  -v, --verbose                Write log messages to stderr in addition to syslog\n"
 		"                               syslog\n"
 		"  -l, --log-level              Set the logging level to DEBUG, INFO, WARN, or ERROR\n"
@@ -105,6 +107,9 @@ int main(int argc, char **argv) {
 		case 'h':
 			print_help(argv[0]);
 			return 1;
+		case 'S':
+			stats_log_syslog(false);
+			break;
 		case 'v':
 			stats_log_verbose(true);
 			break;
