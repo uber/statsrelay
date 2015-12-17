@@ -74,7 +74,7 @@ static struct config *load_config(const char *filename) {
 static void print_help(const char *argv0) {
 	printf("Usage: %s [options]\n"
 		"  -h, --help                   Display this message\n"
-	        "  -S, --no-syslog              Do not write to syslog, only stderr\n"
+	        "  -S, --no-syslog              Do not write to syslog (use with -v to log to stderr)\n"
 		"  -v, --verbose                Write log messages to stderr in addition to syslog\n"
 		"                               syslog\n"
 		"  -l, --log-level              Set the logging level to DEBUG, INFO, WARN, or ERROR\n"
