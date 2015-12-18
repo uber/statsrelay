@@ -95,7 +95,7 @@ int main(int argc, char **argv) {
 
 	stats_set_log_level(STATSRELAY_LOG_INFO);  // set default value
 	while (c != -1) {
-		c = getopt_long(argc, argv, "t:c:l:vh", long_options, NULL);
+		c = getopt_long(argc, argv, "t:c:l:vhS", long_options, NULL);
 		switch (c) {
 		case -1:
 			break;
