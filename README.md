@@ -2,7 +2,7 @@
 A consistent-hashing relay for statsd and carbon metrics
 
 [![Build Status](https://travis-ci.org/lyft/statsrelay.svg?branch=master)](https://travis-ci.org/lyft/statsrelay)
-[![Mailing List](https://groups.google.com/forum/#!forum/statsrelay-dev)](https://groups.google.com/forum/#!forum/statsrelay-dev)
+
 
 # License
 MIT License
