@@ -453,11 +453,11 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 				linebuf += group->prefix_len;
 			}
 
-			strcpy(linebuf, key_buffer);
+			strncpy(linebuf, key_buffer, MAX_UDP_LENGTH - group->prefix_len);
 			linebuf += key_len;
 
 			if (group->suffix) {
-				strncpy(linebuf, group->suffix, MAX_UDP_LENGTH);
+				strncpy(linebuf, group->suffix, MAX_UDP_LENGTH - group->prefix_len - key_len);
 				prefix_line_buffer[MAX_UDP_LENGTH] = '\0';
 				linebuf += group->suffix_len;
 			}
