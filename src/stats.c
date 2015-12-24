@@ -418,9 +418,11 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 	memcpy(key_buffer, line, key_len);
 	key_buffer[key_len] = '\0';
 
+	hashring_hash_t key_hash = hashring_hash(key_buffer);
+
 	for (int i = 0; i < ss->rings->size; i++) {
 		stats_backend_group_t* group = (stats_backend_group_t*)ss->rings->data[i];
-		stats_backend_t *backend = hashring_choose(group->ring, key_buffer, NULL);
+		stats_backend_t *backend = hashring_choose_fromhash(group->ring, key_hash, NULL);
 
 		if (backend == NULL) {
 			/* No backend? No problem. Just skip doing anything */

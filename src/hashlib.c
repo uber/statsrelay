@@ -59,5 +59,14 @@ static uint32_t murmur3_32(const char *key, uint32_t len, uint32_t seed) {
 uint32_t stats_hash(const char *key,
 		    uint32_t keylen,
 		    uint32_t output_domain) {
-	return murmur3_32(key, keylen, HASHLIB_SEED) % output_domain;
+        return murmur3_32(key, keylen, HASHLIB_SEED) % output_domain;
+}
+
+uint32_t stats_hash_key(const char *key,
+                        uint32_t keylen) {
+        return murmur3_32(key, keylen, HASHLIB_SEED);
+}
+
+uint32_t stats_hash_domain(uint32_t hash, uint32_t output_domain) {
+	return hash % output_domain;
 }
