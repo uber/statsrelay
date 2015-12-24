@@ -1,13 +1,23 @@
 # statsrelay
 A consistent-hashing relay for statsd and carbon metrics
 
-[![Build Status](https://travis-ci.org/uber/statsrelay.svg?branch=master)](https://travis-ci.org/uber/statsrelay)
-[![Coverity Status](https://scan.coverity.com/projects/2789/badge.svg)](https://scan.coverity.com/projects/2789)
+[![Build Status](https://travis-ci.org/lyft/statsrelay.svg?branch=master)](https://travis-ci.org/lyft/statsrelay)
 [![Mailing List](https://groups.google.com/forum/#!forum/statsrelay-dev)](https://groups.google.com/forum/#!forum/statsrelay-dev)
 
 # License
 MIT License
 Copyright (c) 2014 Uber Technologies, Inc.
+
+# Whats different in this version
+
+This version differs from upstream in several key ways:
+
+- The YAML configuration was removed in favor of JSON
+- Relaying can now be done to one more more destinations, with:
+  - Prefix and suffixing of any metric names
+  - Ingress filtering based on a regular expression
+- Several key bug fixes designed to improve operationability
+
 
 # Build
 
@@ -15,10 +25,11 @@ Dependencies:
 - automake
 - pkg-config
 - libev (>= 4.11)
-- libyaml
+- libjansson
+- libpcre
 
 ```
-apt-get install automake pkg-config libev-dev libyaml-devel
+apt-get install automake pkg-config libev-dev libjansson-devel
 
 autoreconf --install
 ./configure
@@ -38,14 +49,14 @@ Usage: statsrelay [options]
   -l, --log-level              Set the logging level to DEBUG, INFO, WARN, or ERROR
                                (default: INFO)
   -c, --config=filename        Use the given hashring config file
-                               (default: /etc/statsrelay.yaml)
+                               (default: /etc/statsrelay.json)
   -t, --check-config=filename  Check the config syntax
-                               (default: /etc/statsrelay.yaml)
+                               (default: /etc/statsrelay.json)
   --version                    Print the version
 ```
 
 ```
-statsrelay --config=/path/to/statsrelay.yaml
+statsrelay --config=/path/to/statsrelay.json
 ```
 
 This process will run in the foreground. If you need to daemonize, use
@@ -74,7 +85,7 @@ All log messages are sent to syslog with the INFO priority.
 
 Upon SIGHUP, the config file will be reloaded and all backend
 connections closed. Note that any stats in the send queue at the time
-of SIGHUP will be dropped.
+of SIGHUP will be dropped. ** THIS IS CURRENTLY BROKEN **
 
 If SIGINT or SIGTERM are caught, all connections are killed, send
 queues are dropped, and memory freed. statsrelay exits with return
@@ -109,21 +120,15 @@ also applies to alternative statsd implementations like statsite.
 
 Consider the following simplified example with this config file:
 
-```yaml
-statsd:
-  bind: 127.0.0.1:8125
-  validate: true
-  shard_map:
-    0: 10.0.0.1:9000
-    1: 10.0.0.1:9000
-    2: 10.0.0.1:9001
-    3: 10.0.0.1:9001
-    4: 10.0.0.2:9000
-    5: 10.0.0.2:9000
-    6: 10.0.0.2:9001
-    7: 10.0.0.2:9001
-carbon:
-  ...
+```json
+{"carbon": {
+    "bind": "127.0.0.1:2004",
+    "shard_map": ["127.0.0.1:2000",
+                  "127.0.0.1:2001",
+                  "127.0.0.1:2002",
+                  "127.0.0.1:2003"]
+}
+}
 ```
 
 In this file we've defined two actual backend hosts (10.0.0.1 and
@@ -133,43 +138,11 @@ since statsd and alternative implementations like statsite are
 typically single threaded). In a real setup, you'd likely be running
 more statsd instances on each server, and you'd likely have more
 repeated lines to assign more virtual shards to each statsd
-instance. At Uber we use 4096 virtual shards, with a much smaller
-number of actual backend instances.
+instance. 
 
 Internally statsrelay assigns a zero-indexed virtual shard to each
 line in the file; so 10.0.0.1:9000 has virtual shards 0 and 1,
 10.0.0.1:9001 has virtual shards 2 and 3, and so on.
-
-Let's say that the backend server 10.0.0.1 has become overloaded, and
-we want to add a new server to the configuration. We might do that
-like this:
-
-```yaml
-statsd:
-  bind: 127.0.0.1:8125
-  validate: true
-  shard_map:
-    0: 10.0.0.1:9000
-    1: 10.0.0.3:9000
-    2: 10.0.0.1:9001
-    3: 10.0.0.3:9001
-    4: 10.0.0.2:9000
-    5: 10.0.0.2:9000
-    6: 10.0.0.2:9001
-    7: 10.0.0.2:9001
-carbon:
-  ...
-```
-
-In the new configuration we've moved one of the two virtual shards for
-10.0.0.1:9000 to 10.0.0.3:9000, and we've moved one of the two virtual
-shards for 10.0.0.1:9001 to 10.0.0.3:9001. In other words, we've
-reassigned the mapping for virtual shard 1 and virtual shard 3. Note
-that when you do this, you want to maintain the same number of virtual
-shards always, so you probably want to pick a large number of virtual
-shards to start (say, 1024 virtual shards, meaning the configuration
-file should have 1024 lines). You should have many duplicated lines in
-the config file when you do this.
 
 To do optimal shard assignment, you'll want to write a program that
 looks at the CPU usage of your shards and figures out the optimal
