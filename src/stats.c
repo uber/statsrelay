@@ -369,14 +369,14 @@ void stats_server_reload(stats_server_t *server) {
 		group_destroy(group);
 	}
 	statsrelay_list_destroy(server->rings);
+        // Note: At this state, its important to not destroy any backends - at best we need
+	// to implement a GC flag on each backend so it can be sweeped after the
+	// config is actually reloaded
 
-	free(server->backend_list);
-	server->num_backends = 0;
-	server->backend_list = NULL;
 
 	server->last_reload = time(NULL);
 
-	// FIXME
+	// FIXME - this is still totally broken despite the docs saying its ok ;)
 }
 
 void *stats_connection(int sd, void *ctx) {
