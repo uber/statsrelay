@@ -56,7 +56,7 @@ class TestCase(unittest.TestCase):
         return fd.recv(65536)
 
     @contextlib.contextmanager
-    def generate_config(self, mode, suffix='.yaml'):
+    def generate_config(self, mode, suffix='.json'):
         if mode.lower() == 'tcp':
             sock_type = socket.SOCK_STREAM
             config_path = 'tests/statsrelay' + suffix
@@ -143,12 +143,6 @@ class ConfigTestCase(TestCase):
             proc.wait()
             self.assertEqual(proc.returncode, 0)
 
-    def test_check_valid_tcp_file(self):
-        with self.generate_config('tcp', suffix='.json') as config_path:
-            proc = subprocess.Popen(['./statsrelay', '-t', config_path])
-            proc.wait()
-            self.assertEqual(proc.returncode, 0)
-
     def test_check_valid_udp_file(self):
         with self.generate_config('udp') as config_path:
             proc = subprocess.Popen(['./statsrelay', '-t', config_path])
@@ -156,7 +150,7 @@ class ConfigTestCase(TestCase):
             self.assertEqual(proc.returncode, 0)
 
     def test_check_empty_file(self):
-        proc = subprocess.Popen(['./statsrelay', '-c', 'tests/empty.yaml'])
+        proc = subprocess.Popen(['./statsrelay', '-c', 'tests/empty.json'])
         proc.wait()
         self.assertEqual(proc.returncode, 1)
 
@@ -354,19 +348,19 @@ class StathasherTests(unittest.TestCase):
         return line
 
     def test_stathasher(self):
-        line = self.get_foo('tests/stathasher.yaml')
+        line = self.get_foo('tests/stathasher.json')
         self.assertEqual(line, 'key=foo carbon=127.0.0.1:2001 carbon_shard=1 statsd=127.0.0.1:3001 statsd_shard=1\n')  # noqa
 
     def test_stathasher_empty(self):
-        line = self.get_foo('tests/empty.yaml')
+        line = self.get_foo('tests/empty.json')
         self.assertEqual(line, 'key=foo\n')
 
     def test_stathasher_just_carbon(self):
-        line = self.get_foo('tests/stathasher_just_carbon.yaml')
+        line = self.get_foo('tests/stathasher_just_carbon.json')
         self.assertEqual(line, 'key=foo carbon=127.0.0.1:2001 carbon_shard=1\n')
 
     def test_stathasher_just_statsd(self):
-        line = self.get_foo('tests/stathasher_just_statsd.yaml')
+        line = self.get_foo('tests/stathasher_just_statsd.json')
         self.assertEqual(line, 'key=foo statsd=127.0.0.1:3001 statsd_shard=1\n')
 
 

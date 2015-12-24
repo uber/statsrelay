@@ -217,24 +217,3 @@ parse_err:
 	yaml_parser_delete(&parser);
 	return NULL;
 }
-
-static void destroy_proto_config(struct proto_config *config) {
-	statsrelay_list_destroy_full(config->ring);
-	for (int i = 0; i < config->dupl->size; i++) {
-		struct duplicate_config* dupl = (struct duplicate_config*)config->dupl->data[i];
-		if (dupl->prefix)
-			free(dupl->prefix);
-		if (dupl->suffix)
-			free(dupl->suffix);
-		statsrelay_list_destroy_full(dupl->ring);
-	}
-	free(config->bind);
-}
-
-void destroy_config(struct config *config) {
-	if (config != NULL) {
-		destroy_proto_config(&config->statsd_config);
-		destroy_proto_config(&config->carbon_config);
-		free(config);
-	}
-}

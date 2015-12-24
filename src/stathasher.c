@@ -50,7 +50,7 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "failed to open %s\n", config_name);
 		return 1;
 	}
-	struct config *app_cfg = parse_config(config_file);
+	struct config *app_cfg = parse_json_config(config_file);
 
 	fclose(config_file);
 	if (app_cfg == NULL) {

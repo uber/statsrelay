@@ -58,13 +58,9 @@ static struct config *load_config(const char *filename) {
 		return NULL;
 	}
 
-	int len = strlen(filename);
 	struct config *cfg;
 
-	if (strcmp(&filename[len - 5], ".json") == 0)
-		cfg = parse_json_config(file_handle);
-	else
-		cfg = parse_config(file_handle);
+        cfg = parse_json_config(file_handle);
 
 	fclose(file_handle);
 	return cfg;
