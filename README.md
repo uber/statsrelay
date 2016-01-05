@@ -29,7 +29,7 @@ Dependencies:
 - libpcre
 
 ```
-apt-get install automake pkg-config libev-dev libjansson-devel
+apt-get install automake pkg-config libev-dev libjansson-dev libpcre3-dev
 
 autoreconf --install
 ./configure
