@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "./yaml_config.h"
+#include "./json_config.h"
 
 typedef void* (*hashring_alloc_func)(const char *, void *data);
 typedef void (*hashring_dealloc_func)(void *);

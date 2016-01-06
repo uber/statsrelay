@@ -1,4 +1,4 @@
-#include "yaml_config.h"
+#include "json_config.h"
 #include "log.h"
 
 #include <stdbool.h>

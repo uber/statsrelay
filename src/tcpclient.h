@@ -13,7 +13,7 @@
 
 #include <ev.h>
 
-#include "yaml_config.h"
+#include "json_config.h"
 
 #define TCPCLIENT_CONNECT_TIMEOUT 2.0
 #define TCPCLIENT_RETRY_TIMEOUT 1

@@ -5,7 +5,7 @@
 #include <string.h>
 
 #include "./hashring.h"
-#include "./yaml_config.h"
+#include "./json_config.h"
 
 static struct option long_options[] = {
 	{"config",		required_argument,	NULL, 'c'},
@@ -17,7 +17,7 @@ static void* my_strdup(const char *str, void *unused_data) {
 }
 
 static void print_help(const char *argv0) {
-	printf("Usage: %s [-h] [-c /path/to/config.yaml]", argv0);
+	printf("Usage: %s [-h] [-c /path/to/config.json]", argv0);
 }
 
 int main(int argc, char **argv) {

@@ -6,7 +6,7 @@
 #include "stats.h"
 #include "log.h"
 #include "validate.h"
-#include "yaml_config.h"
+#include "json_config.h"
 
 #include <assert.h>
 #include <ctype.h>

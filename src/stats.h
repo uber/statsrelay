@@ -6,7 +6,7 @@
 
 #include "protocol.h"
 #include "validate.h"
-#include "yaml_config.h"
+#include "json_config.h"
 
 typedef struct stats_server_t stats_server_t;
 
