@@ -17,6 +17,7 @@ static void init_proto_config(struct proto_config *protoc) {
 	protoc->max_send_queue = 134217728;
 	protoc->ring = statsrelay_list_new();
 	protoc->dupl = statsrelay_list_new();
+       protoc->sstats = statsrelay_list_new();
 }
 
 static bool get_bool_orelse(json_t* json, const char* key, bool def) {
@@ -87,7 +88,25 @@ static void parse_duplicate_to(const json_t* duplicate, struct proto_config* con
 	statsrelay_list_expand(config->dupl);
 	config->dupl->data[config->dupl->size - 1] = dupl;
     }
+}
 
+static void parse_self_stats_to(const json_t* self_stats, struct proto_config* config) {
+    if (self_stats != NULL) {
+            struct self_stats_config* sstats = calloc(1, sizeof(struct self_stats_config));
+            sstats->ring = statsrelay_list_new();
+            sstats->prefix = get_string(self_stats, "prefix");
+            sstats->suffix = get_string(self_stats, "suffix");
+
+            stats_log("adding statsd monitoring cluster with prefix '%s' and suffix '%s'",
+                  sstats->prefix, sstats->suffix);
+
+            const json_t* jdshards = json_object_get(self_stats, "shard_map");
+            parse_server_list(jdshards, sstats->ring);
+            stats_log("added statsd monitoring cluster with %d servers", sstats->ring->size);
+
+            statsrelay_list_expand(config->sstats);
+            config->sstats->data[config->sstats->size - 1] = sstats;
+    }
 }
 
 static int parse_proto(json_t* json, struct proto_config* config) {
@@ -117,6 +136,13 @@ static int parse_proto(json_t* json, struct proto_config* config) {
 	    parse_duplicate_to(duplicate_v, config);
 	}
     }
+
+    const json_t* self_stats_json = json_object_get(json, "self_stats");
+
+    if (json_is_object(self_stats_json)) {
+            parse_self_stats_to(self_stats_json, config);
+    }
+
     return 0;
 }
 

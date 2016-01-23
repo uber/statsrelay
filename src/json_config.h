@@ -25,6 +25,19 @@ struct duplicate_config {
 	list_t ring;
 };
 
+struct self_stats_config {
+	/**
+	 * A string to prepend/append to each metric going through a duplicate block.
+	 * No dot (.) is added - this is a raw string.
+	 */
+	char* prefix;
+	char* suffix;
+	/**
+	 * A list of host:port combos where to forward traffic, consistently hashed.
+	 */
+	list_t ring;	
+};
+
 struct proto_config {
 	bool initialized;
 	char *bind;
@@ -33,6 +46,7 @@ struct proto_config {
 	uint64_t max_send_queue;
 	list_t ring;
 	list_t dupl; /* struct duplicate_config */
+	list_t sstats; /* struct self_stats_config */
 };
 
 struct config {
@@ -43,7 +57,6 @@ struct config {
 
 static const char default_config[] = "/etc/statsrelay.json";
 
-struct config* parse_config(FILE *input);
 struct config* parse_json_config(FILE *input);
 
 // release the memory associated with a config
