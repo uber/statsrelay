@@ -22,6 +22,7 @@ static void print_help(const char *argv0) {
 
 int main(int argc, char **argv) {
 	char *config_name = (char *) default_config;
+	bool process_self_stats = false;
 	char c = 0;
 	while (c != -1) {
 		c = getopt_long(argc, argv, "c:h", long_options, NULL);
@@ -67,8 +68,9 @@ int main(int argc, char **argv) {
 	if (app_cfg->statsd_config.initialized) {
 		statsd_ring = hashring_load_from_config(
 			app_cfg->statsd_config.ring, NULL, my_strdup, free);
+		process_self_stats = app_cfg->statsd_config.send_self_stats;
 	}
-	destroy_config(app_cfg);
+	destroy_json_config(app_cfg);
 
 	uint32_t shard;
 	char *choice = NULL;
@@ -95,6 +97,7 @@ int main(int argc, char **argv) {
 			if (choice != NULL) {
 				printf(" statsd=%s statsd_shard=%d", choice, shard);
 			}
+			printf(" process_self_stats=%s", process_self_stats ? "true" : "false");
 		}
 		putchar('\n');
 		fflush(stdout);

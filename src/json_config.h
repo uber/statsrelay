@@ -40,6 +40,7 @@ struct self_stats_config {
 
 struct proto_config {
 	bool initialized;
+	bool send_self_stats;
 	char *bind;
 	bool enable_validation;
 	bool enable_tcp_cork;
@@ -60,6 +61,6 @@ static const char default_config[] = "/etc/statsrelay.json";
 struct config* parse_json_config(FILE *input);
 
 // release the memory associated with a config
-void destroy_config(struct config *);
+void destroy_json_config(struct config *);
 
 #endif  // STATSRELAY_JSON_CONFIG_H

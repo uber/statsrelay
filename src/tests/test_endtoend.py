@@ -56,10 +56,13 @@ class TestCase(unittest.TestCase):
         return fd.recv(65536)
 
     @contextlib.contextmanager
-    def generate_config(self, mode, suffix='.json'):
+    def generate_config(self, mode, suffix='.json', enable_monitoring=False):
         if mode.lower() == 'tcp':
             sock_type = socket.SOCK_STREAM
-            config_path = 'tests/statsrelay' + suffix
+            if enable_monitoring:
+                config_path = 'tests/statsrelay' + suffix
+            else:
+                config_path = 'tests/statsrelay_{0}.{1}'.format('selfstat', suffix)
         elif mode.lower() == 'udp':
             sock_type = socket.SOCK_DGRAM
             config_path = 'tests/statsrelay_udp' + suffix
@@ -349,7 +352,7 @@ class StathasherTests(unittest.TestCase):
 
     def test_stathasher(self):
         line = self.get_foo('tests/stathasher.json')
-        self.assertEqual(line, 'key=foo carbon=127.0.0.1:2001 carbon_shard=1 statsd=127.0.0.1:3001 statsd_shard=1\n')  # noqa
+        self.assertEqual(line, 'key=foo carbon=127.0.0.1:2001 carbon_shard=1 statsd=127.0.0.1:3001 statsd_shard=1 process_self_stats=false\n')  # noqa
 
     def test_stathasher_empty(self):
         line = self.get_foo('tests/empty.json')
@@ -361,11 +364,11 @@ class StathasherTests(unittest.TestCase):
 
     def test_stathasher_just_statsd(self):
         line = self.get_foo('tests/stathasher_just_statsd.json')
-        self.assertEqual(line, 'key=foo statsd=127.0.0.1:3001 statsd_shard=1\n')
+        self.assertEqual(line, 'key=foo statsd=127.0.0.1:3001 statsd_shard=1 process_self_stats=false\n')
 
     def test_stathasher_statsd_self_stats(self):
         line = self.get_foo('tests/statsrelay_statsd_self_stats.json')
-        self.assertEqual(line, 'key=foo statsd=127.0.0.1:3001 statsd_shard=1\n')
+        self.assertEqual(line, 'key=foo statsd=127.0.0.1:3001 statsd_shard=1 process_self_stats=true\n')
 
 
 def main():

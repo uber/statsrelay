@@ -174,13 +174,13 @@ int main(int argc, char **argv) {
 
 success:
 	destroy_server_collection(&servers);
-	destroy_config(cfg);
+	destroy_json_config(cfg);
 	stats_log_end();
 	return 0;
 
 err:
 	destroy_server_collection(&servers);
-	destroy_config(cfg);
+	destroy_json_config(cfg);
 	stats_log_end();
 	return 1;
 }

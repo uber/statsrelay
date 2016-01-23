@@ -10,14 +10,14 @@ static void json_error_log(const char* msg, json_error_t* error) {
 }
 
 static void init_proto_config(struct proto_config *protoc) {
-	protoc->initialized = false;
-	protoc->bind = NULL;
-	protoc->enable_validation = true;
-	protoc->enable_tcp_cork = true;
-	protoc->max_send_queue = 134217728;
-	protoc->ring = statsrelay_list_new();
-	protoc->dupl = statsrelay_list_new();
-       protoc->sstats = statsrelay_list_new();
+        protoc->initialized = false;
+        protoc->bind = NULL;
+        protoc->enable_validation = true;
+        protoc->enable_tcp_cork = true;
+        protoc->max_send_queue = 134217728;
+        protoc->ring = statsrelay_list_new();
+        protoc->dupl = statsrelay_list_new();
+        protoc->sstats = statsrelay_list_new();
 }
 
 static bool get_bool_orelse(json_t* json, const char* key, bool def) {
@@ -141,6 +141,7 @@ static int parse_proto(json_t* json, struct proto_config* config) {
 
     if (json_is_object(self_stats_json)) {
             parse_self_stats_to(self_stats_json, config);
+            config->send_self_stats = true;
     }
 
     return 0;
@@ -188,7 +189,7 @@ parse_error:
 	if (json != NULL) {
 	    json_decref(json);
 	}
-	destroy_config(config);
+	destroy_json_config(config);
 	return NULL;
 }
 
@@ -202,10 +203,19 @@ static void destroy_proto_config(struct proto_config *config) {
 			free(dupl->suffix);
 		statsrelay_list_destroy_full(dupl->ring);
 	}
+            for (int i = 0; i < config->sstats->size; i++) {
+                          struct self_stats_config* sstats = (struct self_stats_config*)config->sstats->data[i];
+                          if (sstats->prefix)
+                                        free(sstats->prefix);
+                          if (sstats->suffix)
+                                        free(sstats->suffix);
+                          statsrelay_list_destroy_full(sstats->ring);
+            }
+
 	free(config->bind);
 }
 
-void destroy_config(struct config *config) {
+void destroy_json_config(struct config *config) {
 	if (config != NULL) {
 		destroy_proto_config(&config->statsd_config);
 		destroy_proto_config(&config->carbon_config);

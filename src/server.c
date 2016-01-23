@@ -7,6 +7,7 @@
 
 static void init_server(struct server *server) {
 	server->enabled = false;
+	server->send_self_stats = false;
 	server->server = NULL;
 	server->ts = NULL;
 	server->us = NULL;
@@ -20,6 +21,13 @@ static bool connect_server(struct server *server,
 	if (config->ring->size == 0) {
 		stats_log("%s has no backends, skipping", name);
 		return false;
+	}
+
+	if (config->send_self_stats) {
+		/**
+		  * Deduce if we should relay self stats over
+		  */
+		server->send_self_stats = true;
 	}
 
 	struct ev_loop *loop = ev_default_loop(0);

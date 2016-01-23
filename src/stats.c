@@ -289,13 +289,11 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 	server->config = config;
 	server->rings = statsrelay_list_new();
 	{
-		/* First load the primary shard map from the configuration,
-		   then load the duplicate shard map with extra parameters.
-
-		   Once YAML config is removed this can become a non-specialized
-		   loop.
-		*/
-
+		/* 
+		  * 1. Load the primary shard map from the configuration
+		  * 2. Load the duplicate shard map with extra parameters
+		  * 3. Load the monitor stats shard map, if present
+		  */
 		hashring_t ring = hashring_load_from_config(
 		config->ring, server, make_backend, nop_kill_backend);
 		if (ring == NULL) {
