@@ -59,7 +59,7 @@ class TestCase(unittest.TestCase):
     def generate_config(self, mode, suffix='.json', enable_monitoring=False):
         if mode.lower() == 'tcp':
             sock_type = socket.SOCK_STREAM
-            if enable_monitoring:
+            if not enable_monitoring:
                 config_path = 'tests/statsrelay' + suffix
             else:
                 config_path = 'tests/statsrelay_{0}.{1}'.format('selfstat', suffix)

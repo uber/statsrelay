@@ -60,7 +60,7 @@ static struct config *load_config(const char *filename) {
 
 	struct config *cfg;
 
-        cfg = parse_json_config(file_handle);
+	cfg = parse_json_config(file_handle);
 
 	fclose(file_handle);
 	return cfg;

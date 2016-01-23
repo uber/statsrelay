@@ -245,7 +245,7 @@ static void group_destroy(stats_backend_group_t* group) {
 	free(group);
 }
 
-static int group_filter_create(struct duplicate_config* dupl, stats_backend_group_t* group) {
+static int group_filter_create(struct additional_config* dupl, stats_backend_group_t* group) {
 	filter_t* filter;
 	int st = filter_re_create(&filter, dupl->ingress_filter, NULL);
 	if (st != 0) {
@@ -257,7 +257,7 @@ static int group_filter_create(struct duplicate_config* dupl, stats_backend_grou
 	return 0;
 }
 
-static void group_prefix_create(struct duplicate_config* dupl, stats_backend_group_t* group) {
+static void group_prefix_create(struct additional_config* dupl, stats_backend_group_t* group) {
 	group->prefix = dupl->prefix;
 	if (group->prefix)
 		group->prefix_len = strlen(group->prefix);
@@ -307,7 +307,7 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 		server->rings->data[server->rings->size - 1] = (void*)group;
 
 		for (int dupl_i = 0; dupl_i < config->dupl->size; dupl_i++) {
-			struct duplicate_config *dupl = config->dupl->data[dupl_i];
+			struct additional_config *dupl = config->dupl->data[dupl_i];
 			stats_log("Loading a duplicate configuration");
 			ring = hashring_load_from_config(dupl->ring, server, make_backend, nop_kill_backend);
 			if (ring == NULL) {

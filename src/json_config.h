@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-struct duplicate_config {
+struct additional_config {
 	/**
 	 * A string to prepend/append to each metric going through a duplicate block.
 	 * No dot (.) is added - this is a raw string.
@@ -23,19 +23,6 @@ struct duplicate_config {
 	 * A list of host:port combos where to forward traffic, consistently hashed.
 	 */
 	list_t ring;
-};
-
-struct self_stats_config {
-	/**
-	 * A string to prepend/append to each metric going through a duplicate block.
-	 * No dot (.) is added - this is a raw string.
-	 */
-	char* prefix;
-	char* suffix;
-	/**
-	 * A list of host:port combos where to forward traffic, consistently hashed.
-	 */
-	list_t ring;	
 };
 
 struct proto_config {

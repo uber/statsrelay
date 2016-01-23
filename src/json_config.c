@@ -31,7 +31,10 @@ static bool get_bool_orelse(json_t* json, const char* key, bool def) {
 
 static char* get_string(const json_t* json, const char* key) {
     json_t* j = json_object_get(json, key);
-    if (key == NULL)
+    /**
+      * Dont error if the key is optional
+      */
+    if (j == NULL || key == NULL)
 	return NULL;
     if (!json_is_string(j)) {
 	stats_error_log("Expected a string value for '%s' - ignoring config value", key);
@@ -70,42 +73,28 @@ static void parse_server_list(const json_t* jshards, list_t ring) {
     }
 }
 
-static void parse_duplicate_to(const json_t* duplicate, struct proto_config* config) {
-    if (duplicate != NULL) {
-	struct duplicate_config* dupl = calloc(1, sizeof(struct duplicate_config));
-	dupl->ring = statsrelay_list_new();
-	dupl->prefix = get_string(duplicate, "prefix");
-	dupl->suffix = get_string(duplicate, "suffix");
-	dupl->ingress_filter = get_string(duplicate, "input_filter");
+static void parse_additional_config(const json_t* additional_config, struct proto_config* config,  const char* type) {
+    if (additional_config != NULL) {
+	struct additional_config* aconfig = calloc(1, sizeof(struct additional_config));
+	aconfig->ring = statsrelay_list_new();
+	aconfig->prefix = get_string(additional_config, "prefix");
+	aconfig->suffix = get_string(additional_config, "suffix");
+	aconfig->ingress_filter = get_string(additional_config, "input_filter");
 
-	stats_log("adding duplicate cluster with prefix '%s' and suffix '%s'",
-		  dupl->prefix, dupl->suffix);
+	stats_log("adding %s cluster with prefix '%s' and suffix '%s'",
+		  type, aconfig->prefix, aconfig->suffix);
 
-	const json_t* jdshards = json_object_get(duplicate, "shard_map");
-	parse_server_list(jdshards, dupl->ring);
-	stats_log("added duplicate cluster with %d servers", dupl->ring->size);
+	const json_t* jdshards = json_object_get(additional_config, "shard_map");
+	parse_server_list(jdshards, aconfig->ring);
+	stats_log("added %s cluster with %d servers", type, aconfig->ring->size);
 
-	statsrelay_list_expand(config->dupl);
-	config->dupl->data[config->dupl->size - 1] = dupl;
-    }
-}
-
-static void parse_self_stats_to(const json_t* self_stats, struct proto_config* config) {
-    if (self_stats != NULL) {
-            struct self_stats_config* sstats = calloc(1, sizeof(struct self_stats_config));
-            sstats->ring = statsrelay_list_new();
-            sstats->prefix = get_string(self_stats, "prefix");
-            sstats->suffix = get_string(self_stats, "suffix");
-
-            stats_log("adding statsd monitoring cluster with prefix '%s' and suffix '%s'",
-                  sstats->prefix, sstats->suffix);
-
-            const json_t* jdshards = json_object_get(self_stats, "shard_map");
-            parse_server_list(jdshards, sstats->ring);
-            stats_log("added statsd monitoring cluster with %d servers", sstats->ring->size);
-
-            statsrelay_list_expand(config->sstats);
-            config->sstats->data[config->sstats->size - 1] = sstats;
+            if (!strcmp(type, "duplicate")) {
+                statsrelay_list_expand(config->dupl);
+                config->dupl->data[config->dupl->size - 1] = aconfig;
+            } else {
+                statsrelay_list_expand(config->sstats);
+                config->sstats->data[config->sstats->size - 1] = aconfig;
+            }
     }
 }
 
@@ -128,22 +117,21 @@ static int parse_proto(json_t* json, struct proto_config* config) {
 
     const json_t* duplicate = json_object_get(json, "duplicate_to");
     if (json_is_object(duplicate)) {
-	parse_duplicate_to(duplicate, config);
+	parse_additional_config(duplicate, config, "duplicate");
     } else if (json_is_array(duplicate)) {
 	size_t index;
 	const json_t* duplicate_v;
 	json_array_foreach(duplicate, index, duplicate_v) {
-	    parse_duplicate_to(duplicate_v, config);
+	    parse_additional_config(duplicate_v, config, "duplicate");
 	}
     }
 
     const json_t* self_stats_json = json_object_get(json, "self_stats");
 
     if (json_is_object(self_stats_json)) {
-            parse_self_stats_to(self_stats_json, config);
+            parse_additional_config(self_stats_json, config, "monitoring");
             config->send_self_stats = true;
     }
-
     return 0;
 }
 
@@ -196,7 +184,7 @@ parse_error:
 static void destroy_proto_config(struct proto_config *config) {
 	statsrelay_list_destroy_full(config->ring);
 	for (int i = 0; i < config->dupl->size; i++) {
-		struct duplicate_config* dupl = (struct duplicate_config*)config->dupl->data[i];
+		struct additional_config* dupl = (struct additional_config*)config->dupl->data[i];
 		if (dupl->prefix)
 			free(dupl->prefix);
 		if (dupl->suffix)
@@ -204,7 +192,7 @@ static void destroy_proto_config(struct proto_config *config) {
 		statsrelay_list_destroy_full(dupl->ring);
 	}
             for (int i = 0; i < config->sstats->size; i++) {
-                          struct self_stats_config* sstats = (struct self_stats_config*)config->sstats->data[i];
+                          struct additional_config* sstats = (struct additional_config*)config->sstats->data[i];
                           if (sstats->prefix)
                                         free(sstats->prefix);
                           if (sstats->suffix)
