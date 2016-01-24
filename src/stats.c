@@ -231,6 +231,18 @@ static void group_prefix_create(struct additional_config* dupl, stats_backend_gr
 
 }
 
+static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, int events) {
+	ev_tstamp timeout = 60.;
+	stats_server_t *server= (stats_server_t *)watcher->data;
+
+	stats_log("Flushing stats to monitor cluster.");
+	/**
+	  * TODO: fill
+	  */
+	ev_timer_set(&server->stats_flusher, timeout, 0.);
+	ev_timer_start(server->loop, &server->stats_flusher);	
+}
+
 stats_server_t *stats_server_create(struct ev_loop *loop,
 				    struct proto_config *config,
 				    protocol_parser_t parser,
@@ -305,6 +317,17 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 
 			group->ring = ring;
 			group_prefix_create(stat, group);
+
+			/**
+			  * Once initialized, lets kick off the timer
+			  */
+			ev_timer_init(&server->stats_flusher,
+				      flush_cluster_stats,
+				      STATSD_MONITORING_FLUSH_INTERVAL,
+				      0);
+
+			server->stats_flusher.data = server;
+			ev_timer_start(server->loop, &server->stats_flusher);
 		}
 	}
 
@@ -709,19 +732,35 @@ udp_recv_err:
 }
 
 void stats_server_destroy(stats_server_t *server) {
+	ev_timer_stop(server->loop, &server->stats_flusher);
+
 	for (int i = 0; i < server->rings->size; i++) {
 		stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
 		group_destroy(group);
 	}
 
+	for (int i = 0; i < server->monitor_ring->size; i++) {
+		stats_backend_group_t* group = (stats_backend_group_t*)server->monitor_ring->data[i];
+		group_destroy(group);
+	}
+
 	statsrelay_list_destroy(server->rings);
+	statsrelay_list_destroy(server->monitor_ring);
 
 	for (size_t i = 0; i < server->num_backends; i++) {
 		stats_backend_t *backend = server->backend_list[i];
 		kill_backend(backend);
 	}
 
+	for (size_t i = 0; i < server->num_monitor_backends; i++) {
+		stats_backend_t *backend = server->backend_list_monitor[i];
+		kill_backend(backend);
+	}
+
 	free(server->backend_list);
+	free(server->backend_list_monitor);
 	server->num_backends = 0;
+	server->num_monitor_backends = 0;
+
 	free(server);
 }

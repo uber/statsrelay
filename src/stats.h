@@ -19,6 +19,8 @@
 
 #define MAX_UDP_LENGTH 65536
 
+#define STATSD_MONITORING_FLUSH_INTERVAL 1
+
 /**
  * Static stack space for a single statsd key value
  */
@@ -71,6 +73,13 @@ struct stats_server_t {
     list_t monitor_ring;
     size_t num_monitor_backends;
     stats_backend_t **backend_list_monitor;
+
+    /**
+      * Lets maintain a timer to send
+      * status to monitoring cluster
+      * periodically.
+      */
+    ev_timer stats_flusher;
 };
 
 typedef struct {
