@@ -7,7 +7,7 @@
 
 #include "./json_config.h"
 
-typedef void* (*hashring_alloc_func)(const char *, void *data);
+typedef void* (*hashring_alloc_func)(const char *, void *data, bool monitor_ring);
 typedef void (*hashring_dealloc_func)(void *);
 
 // opaque hashring type
@@ -19,13 +19,15 @@ typedef uint32_t hashring_hash_t;
 // Initialize the hashring with the list of backends.
 hashring_t hashring_init(void *alloc_data,
 			 hashring_alloc_func alloc_func,
-			 hashring_dealloc_func dealloc_func);
+			 hashring_dealloc_func dealloc_func,
+                                        bool monitor_ring);
 
 
 hashring_t hashring_load_from_config(list_t config_ring,
 				     void *alloc_data,
 				     hashring_alloc_func alloc_func,
-				     hashring_dealloc_func dealloc_func);
+				     hashring_dealloc_func dealloc_func,
+                                                         bool monitor_ring);
 
 /**
  * Add an item to the hashring; returns true on success, false on

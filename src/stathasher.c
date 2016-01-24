@@ -12,7 +12,7 @@ static struct option long_options[] = {
 	{"help",		no_argument,		NULL, 'h'},
 };
 
-static void* my_strdup(const char *str, void *unused_data) {
+static void* my_strdup(const char *str, void *unused_data, bool is_monitor_ring) {
 	return strdup(str);
 }
 
@@ -63,12 +63,12 @@ int main(int argc, char **argv) {
 
 	if (app_cfg->carbon_config.initialized) {
 		carbon_ring = hashring_load_from_config(
-			app_cfg->carbon_config.ring, NULL, my_strdup, free);
+			app_cfg->carbon_config.ring, NULL, my_strdup, free, false);
 	}
 	if (app_cfg->statsd_config.initialized) {
-		statsd_ring = hashring_load_from_config(
-			app_cfg->statsd_config.ring, NULL, my_strdup, free);
 		process_self_stats = app_cfg->statsd_config.send_self_stats;
+		statsd_ring = hashring_load_from_config(
+			app_cfg->statsd_config.ring, NULL, my_strdup, free, process_self_stats);
 	}
 	destroy_json_config(app_cfg);
 

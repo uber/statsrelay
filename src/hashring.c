@@ -13,13 +13,15 @@
 struct hashring {
 	list_t backends;
 	void *alloc_data;
+	bool is_monitor_ring;
 	hashring_alloc_func alloc;
 	hashring_dealloc_func dealloc;
 };
 
 hashring_t hashring_init(void *alloc_data,
 			 hashring_alloc_func alloc,
-			 hashring_dealloc_func dealloc) {
+			 hashring_dealloc_func dealloc,
+			 bool monitor_ring) {
 	struct hashring *ring = malloc(sizeof(struct hashring));
 	if (ring == NULL) {
 		stats_error_log("failure to malloc() in hashring_init");
@@ -29,14 +31,16 @@ hashring_t hashring_init(void *alloc_data,
 	ring->alloc_data = alloc_data;
 	ring->alloc = alloc;
 	ring->dealloc = dealloc;
+	ring->is_monitor_ring = monitor_ring;
 	return ring;
 }
 
 hashring_t hashring_load_from_config(list_t config_ring,
 				     void *alloc_data,
 				     hashring_alloc_func alloc_func,
-				     hashring_dealloc_func dealloc_func) {
-	hashring_t ring = hashring_init(alloc_data, alloc_func, dealloc_func);
+				     hashring_dealloc_func dealloc_func,
+				     bool monitor_ring) {
+	hashring_t ring = hashring_init(alloc_data, alloc_func, dealloc_func, monitor_ring);
 	if (ring == NULL) {
 		stats_error_log("failed to hashring_init");
 		return NULL;
@@ -56,7 +60,7 @@ bool hashring_add(hashring_t ring, const char *line) {
 		goto add_err;
 	}
 	// allocate an object
-	void *obj = ring->alloc(line, ring->alloc_data);
+	void *obj = ring->alloc(line, ring->alloc_data, ring->is_monitor_ring);
 	if (obj == NULL) {
 		stats_error_log("hashring: failed to alloc line \"%s\"", line);
 		goto add_err;

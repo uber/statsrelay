@@ -12,68 +12,7 @@
 #include <stdio.h>
 #include <time.h>
 
-#include "./filter.h"
-#include "./hashring.h"
-#include "./buffer.h"
-#include "./log.h"
-#include "./stats.h"
-#include "./tcpclient.h"
-#include "./validate.h"
-
-#define MAX_UDP_LENGTH 65536
-
-/**
- * Static stack space for a single statsd key value
- */
-#define KEY_BUFFER 8192
-
-typedef struct {
-	tcpclient_t client;
-	char *key;
-	uint64_t bytes_queued;
-	uint64_t bytes_sent;
-	uint64_t relayed_lines;
-	uint64_t dropped_lines;
-	int failing;
-} stats_backend_t;
-
-typedef struct {
-	const char* prefix;
-	size_t prefix_len;
-	const char* suffix;
-	size_t suffix_len;
-
-	filter_t* ingress_filter;
-	hashring_t ring;
-
-	/* Stats */
-	uint64_t relayed_lines;
-	uint64_t filtered_lines;
-} stats_backend_group_t;
-
-struct stats_server_t {
-	struct ev_loop *loop;
-
-	uint64_t bytes_recv_udp;
-	uint64_t bytes_recv_tcp;
-	uint64_t total_connections;
-	uint64_t malformed_lines;
-	time_t last_reload;
-
-	struct proto_config *config;
-	size_t num_backends;
-	stats_backend_t **backend_list;
-
-	list_t rings;
-	protocol_parser_t parser;
-	validate_line_validator_t validator;
-};
-
-typedef struct {
-	stats_server_t *server;
-	buffer_t buffer;
-	int sd;
-} stats_session_t;
+#include "stats.h"
 
 // callback after bytes are sent
 static int stats_sent(void *tcpclient,
@@ -87,15 +26,30 @@ static int stats_sent(void *tcpclient,
 }
 
 // Add a backend to the backend list.
-static int add_backend(stats_server_t *server, stats_backend_t *backend) {
-	stats_backend_t **new_backends = realloc(
-		server->backend_list, sizeof(stats_backend_t *) * (server->num_backends + 1));
+static int add_backend(stats_server_t *server, stats_backend_t *backend, bool is_monitor_ring) {
+	stats_backend_t **new_backends;
+	if (is_monitor_ring) {
+		new_backends = realloc(
+			server->backend_list_monitor,
+			sizeof(stats_backend_t *) * (server->num_monitor_backends + 1));
+	} else {
+		new_backends = realloc(
+			server->backend_list,
+			sizeof(stats_backend_t *) * (server->num_backends + 1));
+	}
 	if (new_backends == NULL) {
-		stats_log("add_backend: failed to realloc backends list");
+		stats_log("add_backend: failed to realloc backends list %s\n",
+				is_monitor_ring ? "monitor cluster" : "");
 		return 1;
 	}
-	server->backend_list = new_backends;
-	server->backend_list[server->num_backends++] = backend;
+
+	if (is_monitor_ring) {
+		server->backend_list_monitor =  new_backends;
+		server->backend_list_monitor[server->num_monitor_backends++] = backend;
+	} else {
+		server->backend_list = new_backends;
+		server->backend_list[server->num_backends++] = backend;
+	}
 	return 0;
 }
 
@@ -105,9 +59,9 @@ static int add_backend(stats_server_t *server, stats_backend_t *backend) {
 // configuration (say, less than 10,000 backend statsite or carbon
 // servers). Also note that while this is linear, it only happens
 // during statsrelay initialization, not when running.
-static stats_backend_t *find_backend(stats_server_t *server, const char *key) {
-	for (size_t i = 0; i < server->num_backends; i++) {
-		stats_backend_t *backend = server->backend_list[i];
+static stats_backend_t *find_backend(stats_backend_t **backend_lists, size_t num_backends, const char *key) {
+	for (size_t i = 0; i < num_backends; i++) {
+		stats_backend_t *backend = backend_lists[i];
 		if (strcmp(backend->key, key) == 0) {
 			return backend;
 		}
@@ -117,7 +71,7 @@ static stats_backend_t *find_backend(stats_server_t *server, const char *key) {
 
 // Make a backend, returning it from the backend list if it's already
 // been created.
-static void* make_backend(const char *host_and_port, void *data) {
+static void* make_backend(const char *host_and_port, void *data, bool is_monitor_ring) {
 	stats_backend_t *backend = NULL;
 	char *full_key = NULL;
 
@@ -168,7 +122,12 @@ static void* make_backend(const char *host_and_port, void *data) {
 
 	// Find the key in our list of backends
 	stats_server_t *server = (stats_server_t *) data;
-	backend = find_backend(server, full_key);
+
+	if (is_monitor_ring) {
+		backend = find_backend(server->backend_list_monitor, server->num_monitor_backends, full_key);
+	} else {
+		backend = find_backend(server->backend_list, server->num_backends, full_key);
+	}
 	if (backend != NULL) {
 		free(host);
 		free(port);
@@ -204,7 +163,7 @@ static void* make_backend(const char *host_and_port, void *data) {
 	backend->failing = 0;
 	backend->key = full_key;
 	tcpclient_set_sent_callback(&backend->client, stats_sent);
-	add_backend(server, backend);
+	add_backend(server, backend, is_monitor_ring);
 	stats_debug_log("initialized new backend %s", backend->key);
 
 	free(host);
@@ -285,9 +244,12 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 
 	server->loop = loop;
 	server->num_backends = 0;
+	server->num_monitor_backends = 0;
 	server->backend_list = NULL;
+	server->backend_list_monitor = NULL;
 	server->config = config;
 	server->rings = statsrelay_list_new();
+	server->monitor_ring = statsrelay_list_new();
 	{
 		/* 
 		  * 1. Load the primary shard map from the configuration
@@ -295,7 +257,7 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 		  * 3. Load the monitor stats shard map, if present
 		  */
 		hashring_t ring = hashring_load_from_config(
-		config->ring, server, make_backend, nop_kill_backend);
+		config->ring, server, make_backend, nop_kill_backend, false);
 		if (ring == NULL) {
 			stats_error_log("hashring_load_from_config failed");
 			goto server_create_err;
@@ -308,8 +270,7 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 
 		for (int dupl_i = 0; dupl_i < config->dupl->size; dupl_i++) {
 			struct additional_config *dupl = config->dupl->data[dupl_i];
-			stats_log("Loading a duplicate configuration");
-			ring = hashring_load_from_config(dupl->ring, server, make_backend, nop_kill_backend);
+			ring = hashring_load_from_config(dupl->ring, server, make_backend, nop_kill_backend, false);
 			if (ring == NULL) {
 				stats_error_log("hashring_load_from_config for duplicate ring failed");
 				goto server_create_err;
@@ -325,6 +286,25 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 				if (group_filter_create(dupl, group) != 0)
 					goto server_create_err;
 			}
+		}
+
+		if (config->send_self_stats) {
+			/**
+			  * Only single config for monitor section
+			  */
+			struct additional_config *stat = config->sstats->data[0];
+
+			ring = hashring_load_from_config(stat->ring, server, make_backend, nop_kill_backend, true);
+			if (ring == NULL) {
+				stats_error_log("hashring_load_from_config for monitor ring failed");
+				goto server_create_err;
+			}
+			statsrelay_list_expand(server->monitor_ring);
+			group = calloc(1, sizeof(stats_backend_group_t));
+			server->monitor_ring->data[server->monitor_ring->size - 1] = (void*)group;
+
+			group->ring = ring;
+			group_prefix_create(stat, group);
 		}
 	}
 

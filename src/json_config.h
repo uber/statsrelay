@@ -33,8 +33,8 @@ struct proto_config {
 	bool enable_tcp_cork;
 	uint64_t max_send_queue;
 	list_t ring;
-	list_t dupl; /* struct duplicate_config */
-	list_t sstats; /* struct self_stats_config */
+	list_t dupl; /* struct additional_config */
+	list_t sstats; /* struct additional_config */
 };
 
 struct config {
