@@ -188,10 +188,10 @@ static void nop_kill_backend(void *data) {
 
 static void kill_backend(stats_backend_t *backend) {
 	if (backend->key != NULL) {
-		stats_debug_log("killing backend %s", backend->key);
+		stats_log("killing backend %s", backend->key);
 		free(backend->key);
 	}
-	tcpclient_destroy(&backend->client, 1);
+	tcpclient_destroy(&backend->client);
 	free(backend);
 }
 
@@ -236,7 +236,11 @@ static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, 
 	stats_server_t *server= (stats_server_t *)watcher->data;
 
 	stats_backend_t *backend;
-	ssize_t bytes_sent;
+
+	char *head, *tail;
+	size_t len;
+
+	static char line_buffer[MAX_UDP_LENGTH + 2];
 
 	buffer_produced(server->health_buffer,
 		snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
@@ -310,12 +314,26 @@ static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, 
 	}
 
 	while (buffer_datacount(server->health_buffer) > 0) {
-		/**
-		  * TODO: call stats_relay_line, with the buffer contents
-		  */
-		printf("%.*s", buffer_datacount(server->health_buffer), buffer_head(server->health_buffer));
-		buffer_consume(server->health_buffer, buffer_datacount(server->health_buffer));
+		size_t datasize = buffer_datacount(server->health_buffer);
+
+		if (datasize == 0) {
+			break;
+		}
+		head = (char *)buffer_head(server->health_buffer);
+		tail = memchr(head, '\n', datasize);
+		if (tail == NULL) {
+			break;
+		}
+		len = tail - head;
+		memcpy(line_buffer, head, len);
+		memcpy(line_buffer + len, "\n\0", 2);
+
+		if (stats_relay_line(line_buffer, len, server, true) != 0) {
+			stats_log("Flush failed on %.*s, skipping!\n", len, line_buffer);
+		}
+		buffer_consume(server->health_buffer, len + 1);
 	}
+
 	/**
 	  * reset timer
 	  */
@@ -834,22 +852,23 @@ void stats_server_destroy(stats_server_t *server) {
 		stats_backend_group_t* group = (stats_backend_group_t*)server->monitor_ring->data[i];
 		group_destroy(group);
 	}
-
 	statsrelay_list_destroy(server->rings);
 	statsrelay_list_destroy(server->monitor_ring);
 
 	for (size_t i = 0; i < server->num_backends; i++) {
 		stats_backend_t *backend = server->backend_list[i];
-		kill_backend(backend);
+		if (backend != NULL) {
+			kill_backend(backend);
+		}
 	}
 
 	for (size_t i = 0; i < server->num_monitor_backends; i++) {
 		stats_backend_t *backend = server->backend_list_monitor[i];
 		kill_backend(backend);
 	}
-
 	free(server->backend_list);
 	free(server->backend_list_monitor);
+
 	server->num_backends = 0;
 	server->num_monitor_backends = 0;
 

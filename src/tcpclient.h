@@ -96,7 +96,5 @@ int tcpclient_sendall(tcpclient_t *client,
 		      const char *buf,
 		      size_t len);
 
-void tcpclient_destroy(tcpclient_t *client,
-		       int drop_queued);
-
+void tcpclient_destroy(tcpclient_t *client);
 #endif  // STATSRELAY_TCPCLIENT_H

@@ -383,7 +383,7 @@ int tcpclient_sendall(tcpclient_t *client, const char *buf, size_t len) {
 	return 0;
 }
 
-void tcpclient_destroy(tcpclient_t *client, int drop_queue) {
+void tcpclient_destroy(tcpclient_t *client) {
 	if (client == NULL) {
 		return;
 	}
