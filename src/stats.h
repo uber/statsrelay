@@ -67,19 +67,18 @@ struct stats_server_t {
     protocol_parser_t parser;
     validate_line_validator_t validator;
 
-    /** Maintain unique ring for 
-       * monitoring stats
-       */
+    /** Maintain unique ring for monitoring stats */
     list_t monitor_ring;
     size_t num_monitor_backends;
     stats_backend_t **backend_list_monitor;
 
-    /**
-      * Lets maintain a timer to send
-      * status to monitoring cluster
-      * periodically.
-      */
+    /** timer to flush health stats to central cluster **/
     ev_timer stats_flusher;
+
+    /**
+      * maintain a buffer for stats flush
+      */
+    buffer_t *health_buffer;
 };
 
 typedef struct {
@@ -109,5 +108,7 @@ void *stats_connection(int sd, void *ctx);
 int stats_recv(int sd, void *data, void *ctx);
 
 int stats_udp_recv(int sd, void *data);
+
+static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bool send_to_monitor_cluster);
 
 #endif  // STATSRELAY_STATS_H

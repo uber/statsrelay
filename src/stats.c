@@ -235,9 +235,89 @@ static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, 
 	ev_tstamp timeout = 60.;
 	stats_server_t *server= (stats_server_t *)watcher->data;
 
-	stats_log("Flushing stats to monitor cluster.");
+	stats_backend_t *backend;
+	ssize_t bytes_sent;
+
+	buffer_produced(server->health_buffer,
+		snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+		"global.bytes_recv_tcp:%" PRIu64 "|g\n",
+		server->bytes_recv_tcp));
+
+	buffer_produced(server->health_buffer,
+		snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+		"global.total_connections:%" PRIu64 "|g\n",
+		server->total_connections));
+
+	buffer_produced(server->health_buffer,
+		snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+		"global.bytes_recv_udp:%" PRIu64 "|g\n",
+		server->bytes_recv_udp));
+
+	buffer_produced(server->health_buffer,
+		snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+		"global.total_connections:%" PRIu64 "|g\n",
+		server->total_connections));
+
+	buffer_produced(server->health_buffer,
+		snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+		"global.last_reload.timestamp:%" PRIu64 "|g\n",
+		server->last_reload));
+
+	buffer_produced(server->health_buffer,
+		snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+		"global.malformed_lines:%" PRIu64 "|g\n",
+		server->malformed_lines));
+
+	for (int i = 0; i < server->rings->size; i++) {
+		stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
+		buffer_produced(server->health_buffer,
+				snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+					 "group_%i.filtered_lines:%" PRIu64 "|g\n",
+					 i, group->filtered_lines));
+		buffer_produced(server->health_buffer,
+				snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+					 "group_%i.relayed_lines:%" PRIu64 "|g\n",
+					 i, group->relayed_lines));
+	}
+
+	for (size_t i = 0; i < server->num_backends; i++) {
+		backend = server->backend_list[i];
+
+		buffer_produced(server->health_buffer,
+			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+			"backend_%s.bytes_queued:%" PRIu64 "|g\n",
+			backend->key, backend->bytes_queued));
+
+		buffer_produced(server->health_buffer,
+			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+			"backend_%s.bytes_sent:%" PRIu64 "|g\n",
+			backend->key, backend->bytes_sent));
+
+		buffer_produced(server->health_buffer,
+			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+			"backend_%s.relayed_lines:%" PRIu64 "|g\n",
+			backend->key, backend->relayed_lines));
+
+		buffer_produced(server->health_buffer,
+			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+			"backend_%s.dropped_lines:%" PRIu64 "|g\n",
+			backend->key, backend->dropped_lines));
+
+		buffer_produced(server->health_buffer,
+			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+			"backend_%s.failing.boolean:%i|c\n",
+			backend->key, backend->failing));
+	}
+
+	while (buffer_datacount(server->health_buffer) > 0) {
+		/**
+		  * TODO: call stats_relay_line, with the buffer contents
+		  */
+		printf("%.*s", buffer_datacount(server->health_buffer), buffer_head(server->health_buffer));
+		buffer_consume(server->health_buffer, buffer_datacount(server->health_buffer));
+	}
 	/**
-	  * TODO: fill
+	  * reset timer
 	  */
 	ev_timer_set(&server->stats_flusher, timeout, 0.);
 	ev_timer_start(server->loop, &server->stats_flusher);	
@@ -260,6 +340,7 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 	server->backend_list = NULL;
 	server->backend_list_monitor = NULL;
 	server->config = config;
+	server->health_buffer = NULL;
 	server->rings = statsrelay_list_new();
 	server->monitor_ring = statsrelay_list_new();
 	{
@@ -328,6 +409,13 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 
 			server->stats_flusher.data = server;
 			ev_timer_start(server->loop, &server->stats_flusher);
+
+			server->health_buffer = create_buffer(MAX_UDP_LENGTH);
+			if (server->health_buffer == NULL) {
+				stats_log("failed to allocate flush_stats buffer");
+				return;
+			}
+
 		}
 	}
 
@@ -370,7 +458,7 @@ void stats_server_reload(stats_server_t *server) {
 		group_destroy(group);
 	}
 	statsrelay_list_destroy(server->rings);
-        // Note: At this state, its important to not destroy any backends - at best we need
+        	// Note: At this state, its important to not destroy any backends - at best we need
 	// to implement a GC flag on each backend so it can be sweeped after the
 	// config is actually reloaded
 
@@ -383,7 +471,7 @@ void stats_server_reload(stats_server_t *server) {
 void *stats_connection(int sd, void *ctx) {
 	stats_session_t *session;
 
-	stats_debug_log("stats: accepted client connection on fd %d", sd);
+	stats_log("stats: accepted client connection on fd %d", sd);
 	session = (stats_session_t *) malloc(sizeof(stats_session_t));
 	if (session == NULL) {
 		stats_log("stats: Unable to allocate memory");
@@ -402,7 +490,7 @@ void *stats_connection(int sd, void *ctx) {
 	return (void *) session;
 }
 
-static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
+static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bool send_to_monitor_cluster) {
 	if (ss->config->enable_validation && ss->validator != NULL) {
 		if (ss->validator(line, len) != 0) {
 			return 1;
@@ -421,8 +509,11 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 
 	hashring_hash_t key_hash = hashring_hash(key_buffer);
 
-	for (int i = 0; i < ss->rings->size; i++) {
-		stats_backend_group_t* group = (stats_backend_group_t*)ss->rings->data[i];
+	size_t ring_size = send_to_monitor_cluster ? ss->monitor_ring->size : ss->rings->size;
+	list_t ring_ptr = send_to_monitor_cluster ? ss->monitor_ring : ss->rings;
+
+	for (int i = 0; i < ring_size; i++) {
+		stats_backend_group_t* group = (stats_backend_group_t*)ring_ptr->data[i];
 		stats_backend_t *backend = hashring_choose_fromhash(group->ring, key_hash, NULL);
 
 		if (backend == NULL) {
@@ -612,7 +703,7 @@ static int stats_process_lines(stats_session_t *session) {
 
 		if (len == 6 && strcmp(line_buffer, "status\n") == 0) {
 			stats_send_statistics(session);
-		} else if (stats_relay_line(line_buffer, len, session->server) != 0) {
+		} else if (stats_relay_line(line_buffer, len, session->server, false) != 0) {
 			return 1;
 		}
 		buffer_consume(&session->buffer, len + 1);	// Add 1 to include the '\n'
@@ -720,7 +811,7 @@ int stats_udp_recv(int sd, void *data) {
 		memcpy(line_buffer, head, line_len);
 		memcpy(line_buffer + line_len, "\n\0", 2);
 
-		if (stats_relay_line(line_buffer, line_len, ss) != 0) {
+		if (stats_relay_line(line_buffer, line_len, ss, false) != 0) {
 			goto udp_recv_err;
 		}
 		offset += line_len + 1;

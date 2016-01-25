@@ -8,6 +8,11 @@
       "127.0.0.1:8128",
       "127.0.0.1:8128"
     ],
+    "duplicate_to": [{
+      "prefix": "test-x.",
+      "suffix": ".test-y",
+      "shard_map": ["127.0.0.1:8125"]
+    }],
     "self_stats": {
       "prefix": "test-1.",
       "suffix": ".test-2",

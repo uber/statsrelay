@@ -139,10 +139,12 @@ int buffer_realign(buffer_t *b)
 
 void buffer_destroy(buffer_t *b)
 {
-    free(b->ptr);
-    b->head = NULL;
-    b->tail = NULL;
-    b->size = 0;
+    if (b != NULL) {
+        free(b->ptr);
+        b->head = NULL;
+        b->tail = NULL;
+        b->size = 0;
+    }
 }
 
 void delete_buffer(buffer_t *b)
