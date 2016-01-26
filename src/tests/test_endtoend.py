@@ -372,6 +372,10 @@ class StathasherTests(unittest.TestCase):
         line = self.get_foo('tests/statsrelay_statsd_self_stats.json')
         self.assertEqual(line, 'key=foo statsd=127.0.0.1:8128 statsd_shard=5 process_self_stats=true\n')
 
+    def test_stathasher_statsd_self_stats_fail(self):
+        line = self.get_foo('tests/statsrelay_self_stats_bad.json')
+        self.assertEqual(line, '')
+
 
 def main():
     unittest.main()

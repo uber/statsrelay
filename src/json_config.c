@@ -128,6 +128,9 @@ static int parse_proto(json_t* json, struct proto_config* config) {
         if (json_is_object(self_stats_json)) {
                 parse_additional_config(self_stats_json, config, config->sstats, "monitoring");
                 config->send_self_stats = true;
+        } else {
+            stats_error_log("self_stats option does not accept arrays");
+            return -1;
         }
     }
     return 0;
@@ -160,12 +163,16 @@ struct config* parse_json_config(FILE* input) {
 
 	json_t* statsd_json = json_object_get(json, "statsd");
 	if (statsd_json) {
-	    parse_proto(statsd_json, &config->statsd_config);
+	    if (parse_proto(statsd_json, &config->statsd_config) < 0) {
+                    goto parse_error;
+                }
 	}
 
 	json_t* carbon_json = json_object_get(json, "carbon");
 	if (carbon_json) {
-	    parse_proto(carbon_json, &config->carbon_config);
+                if (parse_proto(carbon_json, &config->carbon_config) < 0) {
+                    goto parse_error;
+                }
 	}
 
 	json_decref(json);
