@@ -163,7 +163,7 @@ struct config* parse_json_config(FILE* input) {
 
 	json_t* statsd_json = json_object_get(json, "statsd");
 	if (statsd_json) {
-	    if (parse_proto(statsd_json, &config->statsd_config) < 0) {
+                if (parse_proto(statsd_json, &config->statsd_config) < 0) {
                     goto parse_error;
                 }
 	}
