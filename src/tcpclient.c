@@ -411,7 +411,6 @@ void tcpclient_destroy(tcpclient_t *client) {
 	}
 	free(client->host);
 	free(client->port);
-	if (client->protocol)
-		free(client->protocol);
+	client->protocol = NULL;
 	buffer_destroy(&client->send_queue);
 }
