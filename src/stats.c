@@ -471,10 +471,19 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 	server->validator = validator;
 
 	for (int i = 0; i < server->rings->size; i++)
-		stats_debug_log("initialized server %d (%d total backends in system), hashring size = %d",
+		stats_log("initialized server %d (%d total backends in system), hashring size = %d",
 				i,
 				server->num_backends,
 				hashring_size(((stats_backend_group_t*)server->rings->data[i])->ring));
+
+
+	if (config->send_self_stats) {
+		for (int i = 0; i < server->monitor_ring->size; i++)
+			stats_log("initialized monitor server %d (%d total backends in system), hashring size = %d",
+				i,
+				server->num_monitor_backends,
+				hashring_size(((stats_backend_group_t*)server->monitor_ring->data[i])->ring));
+	}
 
 	return server;
 
@@ -485,6 +494,12 @@ server_create_err:
 			group_destroy(group);
 		}
 		statsrelay_list_destroy(server->rings);
+
+		for (int i = 0; i < server->monitor_ring->size; i++) {
+			stats_backend_group_t* group = (stats_backend_group_t*)server->monitor_ring->data[i];
+			group_destroy(group);
+		}
+		statsrelay_list_destroy(server->monitor_ring);
 		free(server);
 	}
 	return NULL;
@@ -500,6 +515,13 @@ void stats_server_reload(stats_server_t *server) {
 		group_destroy(group);
 	}
 	statsrelay_list_destroy(server->rings);
+
+	for (int i = 0; i < server->monitor_ring->size; i++) {
+		stats_backend_group_t* group = (stats_backend_group_t*)server->monitor_ring->data[i];
+		group_destroy(group);
+	}
+	statsrelay_list_destroy(server->monitor_ring);
+
         	// Note: At this state, its important to not destroy any backends - at best we need
 	// to implement a GC flag on each backend so it can be sweeped after the
 	// config is actually reloaded

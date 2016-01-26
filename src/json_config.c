@@ -187,25 +187,24 @@ parse_error:
 }
 
 static void destroy_proto_config(struct proto_config *config) {
-	statsrelay_list_destroy_full(config->ring);
-	for (int i = 0; i < config->dupl->size; i++) {
-		struct additional_config* dupl = (struct additional_config*)config->dupl->data[i];
-		if (dupl->prefix)
-			free(dupl->prefix);
-		if (dupl->suffix)
-			free(dupl->suffix);
-		statsrelay_list_destroy_full(dupl->ring);
-	}
-            for (int i = 0; i < config->sstats->size; i++) {
-                          struct additional_config* sstats = (struct additional_config*)config->sstats->data[i];
-                          if (sstats->prefix)
-                                        free(sstats->prefix);
-                          if (sstats->suffix)
-                                        free(sstats->suffix);
-                          statsrelay_list_destroy_full(sstats->ring);
+            statsrelay_list_destroy_full(config->ring);
+            for (int i = 0; i < config->dupl->size; i++) {
+                        struct additional_config* dupl = (struct additional_config*)config->dupl->data[i];
+                        if (dupl->prefix)
+                            free(dupl->prefix);
+                        if (dupl->suffix)
+                            free(dupl->suffix);
+                        statsrelay_list_destroy_full(dupl->ring);
             }
-
-	free(config->bind);
+            for (int i = 0; i < config->sstats->size; i++) {
+                        struct additional_config* sstats = (struct additional_config*)config->sstats->data[i];
+                        if (sstats->prefix)
+                                free(sstats->prefix);
+                        if (sstats->suffix)
+                                free(sstats->suffix);
+                        statsrelay_list_destroy_full(sstats->ring);
+            }
+            free(config->bind);
 }
 
 void destroy_json_config(struct config *config) {
