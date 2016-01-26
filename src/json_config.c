@@ -74,7 +74,8 @@ static void parse_server_list(const json_t* jshards, list_t ring) {
     }
 }
 
-static void parse_additional_config(const json_t* additional_config, struct proto_config* config,  const char* type) {
+static void parse_additional_config(const json_t* additional_config, struct proto_config* config,
+                                                            list_t target_list, const char *type) {
     if (additional_config != NULL) {
 	struct additional_config* aconfig = calloc(1, sizeof(struct additional_config));
 	aconfig->ring = statsrelay_list_new();
@@ -89,13 +90,8 @@ static void parse_additional_config(const json_t* additional_config, struct prot
 	parse_server_list(jdshards, aconfig->ring);
 	stats_log("added %s cluster with %d servers", type, aconfig->ring->size);
 
-            if (!strcmp(type, "duplicate")) {
-                statsrelay_list_expand(config->dupl);
-                config->dupl->data[config->dupl->size - 1] = aconfig;
-            } else {
-                statsrelay_list_expand(config->sstats);
-                config->sstats->data[config->sstats->size - 1] = aconfig;
-            }
+            statsrelay_list_expand(target_list);
+            target_list->data[config->dupl->size - 1] = aconfig;
     }
 }
 
@@ -118,19 +114,19 @@ static int parse_proto(json_t* json, struct proto_config* config) {
 
     const json_t* duplicate = json_object_get(json, "duplicate_to");
     if (json_is_object(duplicate)) {
-	parse_additional_config(duplicate, config, "duplicate");
+	parse_additional_config(duplicate, config, config->dupl, "duplicate");
     } else if (json_is_array(duplicate)) {
 	size_t index;
 	const json_t* duplicate_v;
 	json_array_foreach(duplicate, index, duplicate_v) {
-	    parse_additional_config(duplicate_v, config, "duplicate");
+	    parse_additional_config(duplicate_v, config, config->dupl, "duplicate");
 	}
     }
 
     const json_t* self_stats_json = json_object_get(json, "self_stats");
     if (self_stats_json != NULL) {
         if (json_is_object(self_stats_json)) {
-                parse_additional_config(self_stats_json, config, "monitoring");
+                parse_additional_config(self_stats_json, config, config->sstats, "monitoring");
                 config->send_self_stats = true;
         }
     }

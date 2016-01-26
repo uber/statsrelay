@@ -28,7 +28,8 @@
 
 typedef struct {
     tcpclient_t client;
-    char *key;
+    char *key; /** for ex: 127.0.0.1:8125:tcp */
+    char *metrics_key; /** for ex: 127_0_0_1_8125.tcp */
     uint64_t bytes_queued;
     uint64_t bytes_sent;
     uint64_t relayed_lines;
@@ -96,6 +97,8 @@ stats_server_t *stats_server_create(
 	validate_line_validator_t validator);
 	stats_server_t *server;
 
+static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bool is_monitor_ring);
+
 size_t stats_num_backends(stats_server_t *server);
 
 void stats_server_reload(stats_server_t *server);
@@ -108,7 +111,5 @@ void *stats_connection(int sd, void *ctx);
 int stats_recv(int sd, void *data, void *ctx);
 
 int stats_udp_recv(int sd, void *data);
-
-static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bool send_to_monitor_cluster);
 
 #endif  // STATSRELAY_STATS_H
