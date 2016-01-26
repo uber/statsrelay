@@ -130,8 +130,8 @@ static void* make_backend(const char *host_and_port, void *data, hashring_type_t
 	full_key_metrics = malloc(space_needed);
 
 	for (str_i=0; str_i < hp_len; str_i++) {
-		if (*(host_and_port + str_i) != '.' && *(host_and_port + str_i) != ':') {
-			full_key_metrics[str_i] = *(host_and_port + str_i);
+		if (host_and_port[str_i] != '.' && host_and_port[str_i] != ':') {
+			full_key_metrics[str_i] = host_and_port[str_i];
 		} else {
 			full_key_metrics[str_i] = '_';
 		}
@@ -458,7 +458,6 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 				stats_log("failed to allocate flush_stats buffer");
 				goto server_create_err;
 			}
-
 		}
 	}
 

@@ -91,7 +91,7 @@ static void parse_additional_config(const json_t* additional_config, struct prot
 	stats_log("added %s cluster with %d servers", type, aconfig->ring->size);
 
             statsrelay_list_expand(target_list);
-            target_list->data[config->dupl->size - 1] = aconfig;
+            target_list->data[target_list->size - 1] = aconfig;
     }
 }
 
@@ -129,8 +129,8 @@ static int parse_proto(json_t* json, struct proto_config* config) {
                 parse_additional_config(self_stats_json, config, config->sstats, "monitoring");
                 config->send_self_stats = true;
         } else {
-            stats_error_log("self_stats option does not accept arrays");
-            return -1;
+                stats_error_log("self_stats option does not accept arrays");
+                return -1;
         }
     }
     return 0;
