@@ -394,7 +394,7 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 		  * 3. Load the monitor stats shard map, if present
 		  */
 		hashring_t ring = hashring_load_from_config(
-		config->ring, server, make_backend, nop_kill_backend, false);
+		config->ring, server, make_backend, nop_kill_backend, RING_DEFAULT);
 		if (ring == NULL) {
 			stats_error_log("hashring_load_from_config failed");
 			goto server_create_err;
@@ -407,7 +407,7 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 
 		for (int dupl_i = 0; dupl_i < config->dupl->size; dupl_i++) {
 			struct additional_config *dupl = config->dupl->data[dupl_i];
-			ring = hashring_load_from_config(dupl->ring, server, make_backend, nop_kill_backend, false);
+			ring = hashring_load_from_config(dupl->ring, server, make_backend, nop_kill_backend, RING_DEFAULT);
 			if (ring == NULL) {
 				stats_error_log("hashring_load_from_config for duplicate ring failed");
 				goto server_create_err;
@@ -431,7 +431,8 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 			  */
 			struct additional_config *stat = config->sstats->data[0];
 
-			ring = hashring_load_from_config(stat->ring, server, make_backend, nop_kill_backend, true);
+			ring = hashring_load_from_config(stat->ring, server, make_backend, nop_kill_backend,
+				RING_MONITOR);
 			if (ring == NULL) {
 				stats_error_log("hashring_load_from_config for monitor ring failed");
 				goto server_create_err;

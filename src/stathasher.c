@@ -63,12 +63,12 @@ int main(int argc, char **argv) {
 
 	if (app_cfg->carbon_config.initialized) {
 		carbon_ring = hashring_load_from_config(
-			app_cfg->carbon_config.ring, NULL, my_strdup, free, false);
+			app_cfg->carbon_config.ring, NULL, my_strdup, free, RING_DEFAULT);
 	}
 	if (app_cfg->statsd_config.initialized) {
 		process_self_stats = app_cfg->statsd_config.send_self_stats;
 		statsd_ring = hashring_load_from_config(
-			app_cfg->statsd_config.ring, NULL, my_strdup, free, process_self_stats);
+			app_cfg->statsd_config.ring, NULL, my_strdup, free, process_self_stats ? RING_MONITOR : RING_DEFAULT);
 	}
 	destroy_json_config(app_cfg);
 
