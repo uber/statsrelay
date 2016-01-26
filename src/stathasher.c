@@ -12,7 +12,7 @@ static struct option long_options[] = {
 	{"help",		no_argument,		NULL, 'h'},
 };
 
-static void* my_strdup(const char *str, void *unused_data, bool is_monitor_ring) {
+static void* my_strdup(const char *str, void *unused_data, hashring_type_t ring_type) {
 	return strdup(str);
 }
 

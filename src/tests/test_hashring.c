@@ -9,7 +9,7 @@
 #include <string.h>
 
 
-static void *my_strdup(const char *str, void *data, bool is_monitor) {
+static void *my_strdup(const char *str, void *data, hashring_type_t is_monitor) {
 	return strdup(str);
 }
 
