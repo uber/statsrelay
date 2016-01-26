@@ -354,9 +354,7 @@ static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, 
 		memcpy(line_buffer, head, len);
 		memcpy(line_buffer + len, "\n\0", 2);
 
-		if (stats_relay_line(line_buffer, len, server, true) != 0) {
-			stats_log("Flush failed on %.*s, skipping!\n", len, line_buffer);
-		}
+		stats_relay_line(line_buffer, len, server, true);
 		buffer_consume(server->health_buffer, len + 1);
 	}
 
@@ -516,7 +514,7 @@ void stats_server_reload(stats_server_t *server) {
 void *stats_connection(int sd, void *ctx) {
 	stats_session_t *session;
 
-	stats_log("stats: accepted client connection on fd %d", sd);
+	stats_debug_log("stats: accepted client connection on fd %d", sd);
 	session = (stats_session_t *) malloc(sizeof(stats_session_t));
 	if (session == NULL) {
 		stats_log("stats: Unable to allocate memory");
@@ -607,10 +605,6 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
 			send_len += group->prefix_len + group->suffix_len;
 		}
 
-		/**
-		  * TODO: debug line, nuke post happy release
-		  */
-		stats_log("%s", linebuf);
 		if (tcpclient_sendall(&backend->client, linebuf, send_len + 1) != 0) {
 			backend->dropped_lines++;
 			if (backend->failing == 0) {
