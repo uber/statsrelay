@@ -16,10 +16,10 @@
 
 // callback after bytes are sent
 static int stats_sent(void *tcpclient,
-		      enum tcpclient_event event,
-		      void *context,
-		      char *data,
-		      size_t len) {
+		enum tcpclient_event event,
+		void *context,
+		char *data,
+		size_t len) {
 	stats_backend_t *backend = (stats_backend_t *) context;
 	backend->bytes_sent += len;
 	return 0;
@@ -30,12 +30,12 @@ static int add_backend(stats_server_t *server, stats_backend_t *backend, hashrin
 	stats_backend_t **new_backends;
 	if (r_type == RING_MONITOR) {
 		new_backends = realloc(
-			server->backend_list_monitor,
-			sizeof(stats_backend_t *) * (server->num_monitor_backends + 1));
+				server->backend_list_monitor,
+				sizeof(stats_backend_t *) * (server->num_monitor_backends + 1));
 	} else {
 		new_backends = realloc(
-			server->backend_list,
-			sizeof(stats_backend_t *) * (server->num_backends + 1));
+				server->backend_list,
+				sizeof(stats_backend_t *) * (server->num_backends + 1));
 	}
 	if (new_backends == NULL) {
 		stats_log("add_backend: failed to realloc backends list %s\n",
@@ -163,12 +163,12 @@ static void* make_backend(const char *host_and_port, void *data, hashring_type_t
 	}
 
 	if (tcpclient_init(&backend->client,
-			   server->loop,
-			   backend,
-			   host,
-			   port,
-			   protocol,
-			   server->config)) {
+				server->loop,
+				backend,
+				host,
+				port,
+				protocol,
+				server->config)) {
 		stats_log("stats: failed to tcpclient_init");
 		goto make_err;
 	}
@@ -269,74 +269,74 @@ static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, 
 	static char line_buffer[MAX_UDP_LENGTH + 2];
 
 	buffer_produced(server->health_buffer,
-		snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
-		"global.bytes_recv_tcp:%" PRIu64 "|g\n",
-		server->bytes_recv_tcp));
+			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+				"global.bytes_recv_tcp:%" PRIu64 "|g\n",
+				server->bytes_recv_tcp));
 
 	buffer_produced(server->health_buffer,
-		snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
-		"global.total_connections:%" PRIu64 "|g\n",
-		server->total_connections));
+			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+				"global.total_connections:%" PRIu64 "|g\n",
+				server->total_connections));
 
 	buffer_produced(server->health_buffer,
-		snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
-		"global.bytes_recv_udp:%" PRIu64 "|g\n",
-		server->bytes_recv_udp));
+			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+				"global.bytes_recv_udp:%" PRIu64 "|g\n",
+				server->bytes_recv_udp));
 
 	buffer_produced(server->health_buffer,
-		snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
-		"global.total_connections:%" PRIu64 "|g\n",
-		server->total_connections));
+			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+				"global.total_connections:%" PRIu64 "|g\n",
+				server->total_connections));
 
 	buffer_produced(server->health_buffer,
-		snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
-		"global.last_reload.timestamp:%" PRIu64 "|g\n",
-		server->last_reload));
+			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+				"global.last_reload.timestamp:%" PRIu64 "|g\n",
+				server->last_reload));
 
 	buffer_produced(server->health_buffer,
-		snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
-		"global.malformed_lines:%" PRIu64 "|g\n",
-		server->malformed_lines));
+			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+				"global.malformed_lines:%" PRIu64 "|g\n",
+				server->malformed_lines));
 
 	for (int i = 0; i < server->rings->size; i++) {
 		stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
 		buffer_produced(server->health_buffer,
 				snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
-					 "group_%i.filtered_lines:%" PRIu64 "|g\n",
-					 i, group->filtered_lines));
+					"group_%i.filtered_lines:%" PRIu64 "|g\n",
+					i, group->filtered_lines));
 		buffer_produced(server->health_buffer,
 				snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
-					 "group_%i.relayed_lines:%" PRIu64 "|g\n",
-					 i, group->relayed_lines));
+					"group_%i.relayed_lines:%" PRIu64 "|g\n",
+					i, group->relayed_lines));
 	}
 
 	for (size_t i = 0; i < server->num_backends; i++) {
 		backend = server->backend_list[i];
 
 		buffer_produced(server->health_buffer,
-			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
-			"backend_%s.bytes_queued:%" PRIu64 "|g\n",
-			backend->metrics_key, backend->bytes_queued));
+				snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+					"backend_%s.bytes_queued:%" PRIu64 "|g\n",
+					backend->metrics_key, backend->bytes_queued));
 
 		buffer_produced(server->health_buffer,
-			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
-			"backend_%s.bytes_sent:%" PRIu64 "|g\n",
-			backend->metrics_key, backend->bytes_sent));
+				snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+					"backend_%s.bytes_sent:%" PRIu64 "|g\n",
+					backend->metrics_key, backend->bytes_sent));
 
 		buffer_produced(server->health_buffer,
-			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
-			"backend_%s.relayed_lines:%" PRIu64 "|g\n",
-			backend->metrics_key, backend->relayed_lines));
+				snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+					"backend_%s.relayed_lines:%" PRIu64 "|g\n",
+					backend->metrics_key, backend->relayed_lines));
 
 		buffer_produced(server->health_buffer,
-			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
-			"backend_%s.dropped_lines:%" PRIu64 "|g\n",
-			backend->metrics_key, backend->dropped_lines));
+				snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+					"backend_%s.dropped_lines:%" PRIu64 "|g\n",
+					backend->metrics_key, backend->dropped_lines));
 
 		buffer_produced(server->health_buffer,
-			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
-			"backend_%s.failing.boolean:%i|c\n",
-			backend->metrics_key, backend->failing));
+				snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+					"backend_%s.failing.boolean:%i|c\n",
+					backend->metrics_key, backend->failing));
 	}
 
 	while (buffer_datacount(server->health_buffer) > 0) {
@@ -359,16 +359,16 @@ static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, 
 	}
 
 	/**
-	  * reset timer
-	  */
+	 * reset timer
+	 */
 	ev_timer_set(&server->stats_flusher, timeout, 0.);
 	ev_timer_start(server->loop, &server->stats_flusher);	
 }
 
 stats_server_t *stats_server_create(struct ev_loop *loop,
-				    struct proto_config *config,
-				    protocol_parser_t parser,
-				    validate_line_validator_t validator) {
+		struct proto_config *config,
+		protocol_parser_t parser,
+		validate_line_validator_t validator) {
 	stats_server_t *server;
 	server = malloc(sizeof(stats_server_t));
 	if (server == NULL) {
@@ -387,12 +387,12 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 	server->monitor_ring = statsrelay_list_new();
 	{
 		/* 
-		  * 1. Load the primary shard map from the configuration
-		  * 2. Load the duplicate shard map with extra parameters
-		  * 3. Load the monitor stats shard map, if present
-		  */
+		 * 1. Load the primary shard map from the configuration
+		 * 2. Load the duplicate shard map with extra parameters
+		 * 3. Load the monitor stats shard map, if present
+		 */
 		hashring_t ring = hashring_load_from_config(
-		config->ring, server, make_backend, nop_kill_backend, RING_DEFAULT);
+				config->ring, server, make_backend, nop_kill_backend, RING_DEFAULT);
 		if (ring == NULL) {
 			stats_error_log("hashring_load_from_config failed");
 			goto server_create_err;
@@ -425,12 +425,12 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 
 		if (config->send_self_stats) {
 			/**
-			  * Only single config for monitor section
-			  */
+			 * Only single config for monitor section
+			 */
 			struct additional_config *stat = config->sstats->data[0];
 
 			ring = hashring_load_from_config(stat->ring, server, make_backend, nop_kill_backend,
-				RING_MONITOR);
+					RING_MONITOR);
 			if (ring == NULL) {
 				stats_error_log("hashring_load_from_config for monitor ring failed");
 				goto server_create_err;
@@ -443,12 +443,12 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 			group_prefix_create(stat, group);
 
 			/**
-			  * Once initialized, lets kick off the timer
-			  */
+			 * Once initialized, lets kick off the timer
+			 */
 			ev_timer_init(&server->stats_flusher,
-				      flush_cluster_stats,
-				      STATSD_MONITORING_FLUSH_INTERVAL,
-				      0);
+					flush_cluster_stats,
+					STATSD_MONITORING_FLUSH_INTERVAL,
+					0);
 
 			server->stats_flusher.data = server;
 			ev_timer_start(server->loop, &server->stats_flusher);
@@ -480,9 +480,9 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 	if (config->send_self_stats) {
 		for (int i = 0; i < server->monitor_ring->size; i++)
 			stats_log("initialized monitor server %d (%d total backends in system), hashring size = %d",
-				i,
-				server->num_monitor_backends,
-				hashring_size(((stats_backend_group_t*)server->monitor_ring->data[i])->ring));
+					i,
+					server->num_monitor_backends,
+					hashring_size(((stats_backend_group_t*)server->monitor_ring->data[i])->ring));
 	}
 
 	return server;
@@ -522,7 +522,7 @@ void stats_server_reload(stats_server_t *server) {
 	}
 	statsrelay_list_destroy(server->monitor_ring);
 
-        	// Note: At this state, its important to not destroy any backends - at best we need
+	// Note: At this state, its important to not destroy any backends - at best we need
 	// to implement a GC flag on each backend so it can be sweeped after the
 	// config is actually reloaded
 
@@ -660,73 +660,73 @@ void stats_send_statistics(stats_session_t *session) {
 	}
 
 	buffer_produced(response,
-		snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-		"global bytes_recv_udp gauge %" PRIu64 "\n",
-		session->server->bytes_recv_udp));
+			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+				"global bytes_recv_udp gauge %" PRIu64 "\n",
+				session->server->bytes_recv_udp));
 
 	buffer_produced(response,
-		snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-		"global bytes_recv_tcp gauge %" PRIu64 "\n",
-		session->server->bytes_recv_tcp));
+			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+				"global bytes_recv_tcp gauge %" PRIu64 "\n",
+				session->server->bytes_recv_tcp));
 
 	buffer_produced(response,
-		snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-		"global total_connections gauge %" PRIu64 "\n",
-		session->server->total_connections));
+			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+				"global total_connections gauge %" PRIu64 "\n",
+				session->server->total_connections));
 
 	buffer_produced(response,
-		snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-		"global last_reload timestamp %" PRIu64 "\n",
-		session->server->last_reload));
+			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+				"global last_reload timestamp %" PRIu64 "\n",
+				session->server->last_reload));
 
 	buffer_produced(response,
-		snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-		"global malformed_lines gauge %" PRIu64 "\n",
-		session->server->malformed_lines));
+			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+				"global malformed_lines gauge %" PRIu64 "\n",
+				session->server->malformed_lines));
 
 	for (int i = 0; i < session->server->rings->size; i++) {
 		stats_backend_group_t* group = (stats_backend_group_t*)session->server->rings->data[i];
 		buffer_produced(response,
 				snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-					 "group:%i filtered_lines gauge %" PRIu64 "\n",
-					 i, group->filtered_lines));
+					"group:%i filtered_lines gauge %" PRIu64 "\n",
+					i, group->filtered_lines));
 		buffer_produced(response,
 				snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-					 "group:%i relayed_lines gauge %" PRIu64 "\n",
-					 i, group->relayed_lines));
+					"group:%i relayed_lines gauge %" PRIu64 "\n",
+					i, group->relayed_lines));
 	}
 
 	for (size_t i = 0; i < session->server->num_backends; i++) {
 		backend = session->server->backend_list[i];
 
 		buffer_produced(response,
-			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-			"backend:%s bytes_queued gauge %" PRIu64 "\n",
-			backend->key, backend->bytes_queued));
+				snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+					"backend:%s bytes_queued gauge %" PRIu64 "\n",
+					backend->key, backend->bytes_queued));
 
 		buffer_produced(response,
-			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-			"backend:%s bytes_sent gauge %" PRIu64 "\n",
-			backend->key, backend->bytes_sent));
+				snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+					"backend:%s bytes_sent gauge %" PRIu64 "\n",
+					backend->key, backend->bytes_sent));
 
 		buffer_produced(response,
-			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-			"backend:%s relayed_lines gauge %" PRIu64 "\n",
-			backend->key, backend->relayed_lines));
+				snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+					"backend:%s relayed_lines gauge %" PRIu64 "\n",
+					backend->key, backend->relayed_lines));
 
 		buffer_produced(response,
-			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-			"backend:%s dropped_lines gauge %" PRIu64 "\n",
-			backend->key, backend->dropped_lines));
+				snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+					"backend:%s dropped_lines gauge %" PRIu64 "\n",
+					backend->key, backend->dropped_lines));
 
 		buffer_produced(response,
-			snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-			"backend:%s failing boolean %i\n",
-			backend->key, backend->failing));
+				snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+					"backend:%s failing boolean %i\n",
+					backend->key, backend->failing));
 	}
 
 	buffer_produced(response,
-		snprintf((char *)buffer_tail(response), buffer_spacecount(response), "\n"));
+			snprintf((char *)buffer_tail(response), buffer_spacecount(response), "\n"));
 
 	while (buffer_datacount(response) > 0) {
 		bytes_sent = send(session->sd, buffer_head(response), buffer_datacount(response), 0);
