@@ -4,10 +4,10 @@
 #include <sys/types.h>
 
 struct buffer {
-    char *ptr;
-    char *head;
-    char *tail;
-    size_t size;
+	char *ptr;
+	char *head;
+	char *tail;
+	size_t size;
 };
 
 typedef struct buffer buffer_t;

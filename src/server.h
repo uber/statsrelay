@@ -24,10 +24,10 @@ struct server_collection {
 };
 
 void init_server_collection(struct server_collection *server_collection,
-			    const char *filename);
+		const char *filename);
 
 bool connect_server_collection(struct server_collection *server_collection,
-			       struct config *config);
+		struct config *config);
 
 void destroy_server_collection(struct server_collection *server_collection);
 

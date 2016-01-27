@@ -5,14 +5,14 @@
 
 // hash a key to get a value in the range [0, output_domain)
 uint32_t stats_hash(const char *key,
-		    uint32_t keylen,
-		    uint32_t output_domain);
+		uint32_t keylen,
+		uint32_t output_domain);
 
 /**
  * Hash a key without a domain limiter
  */
 uint32_t stats_hash_key(const char *key,
-                        uint32_t keylen);
+		uint32_t keylen);
 
 /**
  * Map a hash to an output domain
