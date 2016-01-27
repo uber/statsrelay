@@ -8,12 +8,12 @@
 
 /*
    ptr          head                  tail
-   |            |XXXXXXXXXXXXXXXXXXXXXX|              |
-   [ ---------------- size ---------------------------]
-   [ spacecount   ]
-   [     datacount        ]
+    |            |XXXXXXXXXXXXXXXXXXXXXX|              |
+    [ ---------------- size ---------------------------]
+                                        [ spacecount   ]
+                 [     datacount        ]
 
- */
+*/
 
 int buffer_allocate(buffer_t *b, size_t size)
 {

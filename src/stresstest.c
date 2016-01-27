@@ -27,23 +27,23 @@ int main(int argc, char **argv) {
 	char c;
 	while ((c = getopt_long(argc, argv, "p:s:h", long_options, &option_index)) != -1) {
 		switch (c) {
-		case 0:
-		case 'h':
-			print_help(argv[0]);
-			return 1;
-		case 'p':
-			port = (uint16_t) strtol(optarg, NULL, 10);
-			break;
-		case 's':
-			stat_names = strdup(optarg);
-			if (stat_names == NULL) {
-				perror("failed to strdup()");
+			case 0:
+			case 'h':
+				print_help(argv[0]);
+				return 1;
+			case 'p':
+				port = (uint16_t) strtol(optarg, NULL, 10);
+				break;
+			case 's':
+				stat_names = strdup(optarg);
+				if (stat_names == NULL) {
+					perror("failed to strdup()");
+					goto err;
+				}
+				break;
+			default:
+				fprintf(stderr, "%s: Unknown argument %c", argv[0], c);
 				goto err;
-			}
-			break;
-		default:
-			fprintf(stderr, "%s: Unknown argument %c", argv[0], c);
-			goto err;
 		}
 	}
 	if (stat_names == NULL) {
@@ -108,7 +108,7 @@ int main(int argc, char **argv) {
 		size_t total_sent = 0;
 		while (total_sent < goal) {
 			ssize_t bytes_sent = send(
-				sock, line + total_sent, goal - total_sent, 0);
+					sock, line + total_sent, goal - total_sent, 0);
 			if (bytes_sent <= 0) {
 				perror("failed to send()");
 				goto err;
@@ -128,9 +128,9 @@ int main(int argc, char **argv) {
 	timersub(&t1, &t0, &total);
 	double total_micros = total.tv_sec * 1000000 + total.tv_usec;
 	printf("sent %zd lines in %lu microseconds = %6.3f microseconds per line\n",
-	       lines_sent,
-	       (unsigned long) total_micros,
-	       total_micros / lines_sent);
+			lines_sent,
+			(unsigned long) total_micros,
+			total_micros / lines_sent);
 
 	return 0;
 

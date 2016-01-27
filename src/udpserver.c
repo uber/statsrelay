@@ -74,8 +74,8 @@ static udplistener_t *udplistener_create(udpserver_t *server, struct addrinfo *a
 	listener->data = server->data;
 	listener->cb_recv = cb_recv;
 	listener->sd = socket(addr->ai_family,
-			      addr->ai_socktype,
-			      addr->ai_protocol);
+			addr->ai_socktype,
+			addr->ai_protocol);
 
 	memset(addr_string, 0, INET6_ADDRSTRLEN);
 	if (addr->ai_family == AF_INET) {
@@ -140,8 +140,8 @@ static void udplistener_destroy(udpserver_t *server, udplistener_t *listener) {
 
 
 int udpserver_bind(udpserver_t *server,
-		   const char *address_and_port,
-		   int (*cb_recv)(int, void *)) {
+		const char *address_and_port,
+		int (*cb_recv)(int, void *)) {
 	udplistener_t *listener;
 	struct addrinfo hints;
 	struct addrinfo *addrs, *p;

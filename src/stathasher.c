@@ -27,18 +27,18 @@ int main(int argc, char **argv) {
 	while (c != -1) {
 		c = getopt_long(argc, argv, "c:h", long_options, NULL);
 		switch (c) {
-		case -1:
-			break;
-		case 0:
-		case 'h':
-			print_help(argv[0]);
-			return 0;
-		case 'c':
-			config_name = optarg;
-			break;
-		default:
-			printf("%s: Unknown argument %c\n", argv[0], c);
-			return 1;
+			case -1:
+				break;
+			case 0:
+			case 'h':
+				print_help(argv[0]);
+				return 0;
+			case 'c':
+				config_name = optarg;
+				break;
+			default:
+				printf("%s: Unknown argument %c\n", argv[0], c);
+				return 1;
 		}
 	}
 	if (optind != 1 && optind != 3) {
@@ -63,12 +63,12 @@ int main(int argc, char **argv) {
 
 	if (app_cfg->carbon_config.initialized) {
 		carbon_ring = hashring_load_from_config(
-			app_cfg->carbon_config.ring, NULL, my_strdup, free, RING_DEFAULT);
+				app_cfg->carbon_config.ring, NULL, my_strdup, free, RING_DEFAULT);
 	}
 	if (app_cfg->statsd_config.initialized) {
 		process_self_stats = app_cfg->statsd_config.send_self_stats;
 		statsd_ring = hashring_load_from_config(
-			app_cfg->statsd_config.ring, NULL, my_strdup, free, process_self_stats ? RING_MONITOR : RING_DEFAULT);
+				app_cfg->statsd_config.ring, NULL, my_strdup, free, process_self_stats ? RING_MONITOR : RING_DEFAULT);
 	}
 	destroy_json_config(app_cfg);
 

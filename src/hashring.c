@@ -12,9 +12,9 @@
 
 
 hashring_t hashring_init(void *alloc_data,
-			 hashring_alloc_func alloc,
-			 hashring_dealloc_func dealloc,
-			 hashring_type_t r_type) {
+		hashring_alloc_func alloc,
+		hashring_dealloc_func dealloc,
+		hashring_type_t r_type) {
 	struct hashring *ring = malloc(sizeof(struct hashring));
 	if (ring == NULL) {
 		stats_error_log("failure to malloc() in hashring_init");
@@ -29,10 +29,10 @@ hashring_t hashring_init(void *alloc_data,
 }
 
 hashring_t hashring_load_from_config(list_t config_ring,
-				     void *alloc_data,
-				     hashring_alloc_func alloc_func,
-				     hashring_dealloc_func dealloc_func,
-				     hashring_type_t r_type) {
+		void *alloc_data,
+		hashring_alloc_func alloc_func,
+		hashring_dealloc_func dealloc_func,
+		hashring_type_t r_type) {
 	hashring_t ring = hashring_init(alloc_data, alloc_func, dealloc_func, r_type);
 	if (ring == NULL) {
 		stats_error_log("failed to hashring_init");
@@ -85,8 +85,8 @@ hashring_hash_t hashring_hash(const char* key) {
 }
 
 void* hashring_choose_fromhash(struct hashring* ring,
-			       hashring_hash_t hash,
-			       uint32_t* shard_num) {
+		hashring_hash_t hash,
+		uint32_t* shard_num) {
 	if (ring == NULL || ring->backends == NULL) {
 		return NULL;
 	}
@@ -98,7 +98,7 @@ void* hashring_choose_fromhash(struct hashring* ring,
 		return ring->backends->data[0];
 	}
 	const uint32_t index = stats_hash_domain(hash, ring_size);
-		if (shard_num != NULL) {
+	if (shard_num != NULL) {
 		*shard_num = index;
 	}
 	return ring->backends->data[index];
@@ -106,8 +106,8 @@ void* hashring_choose_fromhash(struct hashring* ring,
 }
 
 void* hashring_choose(struct hashring *ring,
-		      const char *key,
-		      uint32_t *shard_num) {
+		const char *key,
+		uint32_t *shard_num) {
 	hashring_hash_t hash = hashring_hash(key);
 	return hashring_choose_fromhash(ring, hash, shard_num);
 }

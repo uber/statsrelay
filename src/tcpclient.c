@@ -55,12 +55,12 @@ static void tcpclient_connect_timeout(struct ev_loop *loop, struct ev_timer *wat
 }
 
 int tcpclient_init(tcpclient_t *client,
-		   struct ev_loop *loop,
-		   void *callback_context,
-		   const char* host,
-		   const char* port,
-		   const char* protocol,
-		   struct proto_config *config) {
+		struct ev_loop *loop,
+		void *callback_context,
+		const char* host,
+		const char* port,
+		const char* protocol,
+		struct proto_config *config) {
 	client->state = STATE_INIT;
 	client->loop = loop;
 	client->sd = -1;
@@ -86,9 +86,9 @@ int tcpclient_init(tcpclient_t *client,
 	buffer_init(&client->send_queue);
 	buffer_newsize(&client->send_queue, DEFAULT_BUFFER_SIZE);
 	ev_timer_init(&client->timeout_watcher,
-		      tcpclient_connect_timeout,
-		      TCPCLIENT_CONNECT_TIMEOUT,
-		      0);
+			tcpclient_connect_timeout,
+			TCPCLIENT_CONNECT_TIMEOUT,
+			0);
 
 	client->connect_watcher.started = false;
 	client->read_watcher.started = false;
@@ -181,8 +181,8 @@ static void tcpclient_write_event(struct ev_loop *loop, struct ev_io *watcher, i
 			size_t qsize = buffer_datacount(&client->send_queue);
 			if (client->failing && qsize < client->config->max_send_queue) {
 				stats_log("tcpclient[%s]: client recovered from full queue, send queue is now %zd bytes",
-					  client->name,
-					  qsize);
+						client->name,
+						qsize);
 				client->failing = 0;
 			}
 			if (qsize == 0) {
@@ -294,9 +294,9 @@ int tcpclient_connect(tcpclient_t *client) {
 		}
 #ifdef TCP_CORK
 		if (client->config->enable_tcp_cork &&
-		    addr->ai_family == AF_INET &&
-		    addr->ai_socktype == SOCK_STREAM &&
-		    addr->ai_protocol == IPPROTO_TCP) {
+				addr->ai_family == AF_INET &&
+				addr->ai_socktype == SOCK_STREAM &&
+				addr->ai_protocol == IPPROTO_TCP) {
 			int state = 1;
 			if (setsockopt(sd, IPPROTO_TCP, TCP_CORK, &state, sizeof(state))) {
 				stats_error_log("failed to set TCP_CORK");
@@ -403,7 +403,7 @@ void tcpclient_destroy(tcpclient_t *client) {
 		ev_io_stop(client->loop, &client->write_watcher.watcher);
 		client->write_watcher.started = false;
 	}
-		stats_debug_log("closing client->sd %d", client->sd);
+	stats_debug_log("closing client->sd %d", client->sd);
 	close(client->sd);
 	if (client->addr != NULL) {
 		freeaddrinfo(client->addr);
