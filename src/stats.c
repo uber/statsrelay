@@ -242,14 +242,14 @@ static int group_filter_create(struct additional_config* dupl, stats_backend_gro
 	return 0;
 }
 
-static void group_prefix_create(struct additional_config* dupl, stats_backend_group_t* group) {
-	group->prefix = dupl->prefix;
+static void group_prefix_create(struct additional_config* config, stats_backend_group_t* group) {
+	group->prefix = config->prefix;
 	if (group->prefix)
-		group->prefix_len = strlen(group->prefix);
+		group->prefix_len = strlen(config->prefix);
 	else
 		group->prefix_len = 0;
 
-	group->suffix = dupl->suffix;
+	group->suffix = config->suffix;
 	if (group->suffix)
 		group->suffix_len = strlen(group->suffix);
 	else
@@ -436,11 +436,11 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 				goto server_create_err;
 			}
 			statsrelay_list_expand(server->monitor_ring);
-			group = calloc(1, sizeof(stats_backend_group_t));
-			server->monitor_ring->data[server->monitor_ring->size - 1] = (void*)group;
+			stats_backend_group_t* monitor_group = calloc(1, sizeof(stats_backend_group_t));
+			server->monitor_ring->data[server->monitor_ring->size - 1] = (void*)monitor_group;
 
-			group->ring = ring;
-			group_prefix_create(stat, group);
+			monitor_group->ring = ring;
+			group_prefix_create(stat, monitor_group);
 
 			/**
 			 * Once initialized, lets kick off the timer
