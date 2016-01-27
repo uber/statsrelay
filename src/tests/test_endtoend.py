@@ -274,8 +274,7 @@ class StatsdTestCase(TestCase):
             # fast enough
             elapsed = time.time() - t0
 
-            # TODO: Re-enable once the cause for failure is determined.
-            #self.assertLess(elapsed, cork_time / 2)
+            self.assertLess(elapsed, cork_time / 2)
 
     def test_invalid_line_for_pull_request_35(self):
         with self.generate_config('udp') as config_path:
