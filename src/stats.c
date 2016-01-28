@@ -258,7 +258,7 @@ static void group_prefix_create(struct additional_config* config, stats_backend_
 }
 
 static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, int events) {
-	ev_tstamp timeout = 60.;
+	ev_tstamp timeout = 10.;
 	stats_server_t *server= (stats_server_t *)watcher->data;
 
 	stats_backend_t *backend;
@@ -576,12 +576,17 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
 	size_t ring_size = send_to_monitor_cluster ? ss->monitor_ring->size : ss->rings->size;
 	list_t ring_ptr = send_to_monitor_cluster ? ss->monitor_ring : ss->rings;
 
+	if (ring_size == 0) {
+		stats_log("%s ring is empty", send_to_monitor_cluster ? "monitor": "generic");
+	}
+
 	for (int i = 0; i < ring_size; i++) {
 		stats_backend_group_t* group = (stats_backend_group_t*)ring_ptr->data[i];
 		stats_backend_t *backend = hashring_choose_fromhash(group->ring, key_hash, NULL);
 
 		if (backend == NULL) {
 			/* No backend? No problem. Just skip doing anything */
+			stats_log("statsrelay: Failed to find a backend to send in %s ring", send_to_monitor_cluster ? "monitor": "general");
 			continue;
 		}
 
@@ -888,6 +893,8 @@ udp_recv_err:
 
 void stats_server_destroy(stats_server_t *server) {
 	ev_timer_stop(server->loop, &server->stats_flusher);
+
+	buffer_destroy(server->health_buffer);
 
 	for (int i = 0; i < server->rings->size; i++) {
 		stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
