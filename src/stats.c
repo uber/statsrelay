@@ -631,7 +631,9 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
 			send_len += group->prefix_len + group->suffix_len;
 		}
 
-		stats_log("sending %s", linebuf);
+		if (send_to_monitor_cluster)
+			stats_log("statsrelay: sending health stats to %s", backend->client.host);
+
 		if (tcpclient_sendall(&backend->client, linebuf, send_len + 1) != 0) {
 			backend->dropped_lines++;
 			if (backend->failing == 0) {
