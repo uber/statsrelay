@@ -268,44 +268,44 @@ static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, 
 
 	static char line_buffer[MAX_UDP_LENGTH + 2];
 
-	buffer_produced(server->health_buffer,
-			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+	buffer_produced(&server->health_buffer,
+			snprintf((char *)buffer_tail(&server->health_buffer), buffer_spacecount(&server->health_buffer),
 				"global.bytes_recv_tcp:%" PRIu64 "|g\n",
 				server->bytes_recv_tcp));
 
-	buffer_produced(server->health_buffer,
-			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+	buffer_produced(&server->health_buffer,
+			snprintf((char *)buffer_tail(&server->health_buffer), buffer_spacecount(&server->health_buffer),
 				"global.total_connections:%" PRIu64 "|g\n",
 				server->total_connections));
 
-	buffer_produced(server->health_buffer,
-			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+	buffer_produced(&server->health_buffer,
+			snprintf((char *)buffer_tail(&server->health_buffer), buffer_spacecount(&server->health_buffer),
 				"global.bytes_recv_udp:%" PRIu64 "|g\n",
 				server->bytes_recv_udp));
 
-	buffer_produced(server->health_buffer,
-			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+	buffer_produced(&server->health_buffer,
+			snprintf((char *)buffer_tail(&server->health_buffer), buffer_spacecount(&server->health_buffer),
 				"global.total_connections:%" PRIu64 "|g\n",
 				server->total_connections));
 
-	buffer_produced(server->health_buffer,
-			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+	buffer_produced(&server->health_buffer,
+			snprintf((char *)buffer_tail(&server->health_buffer), buffer_spacecount(&server->health_buffer),
 				"global.last_reload.timestamp:%" PRIu64 "|g\n",
 				server->last_reload));
 
-	buffer_produced(server->health_buffer,
-			snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+	buffer_produced(&server->health_buffer,
+			snprintf((char *)buffer_tail(&server->health_buffer), buffer_spacecount(&server->health_buffer),
 				"global.malformed_lines:%" PRIu64 "|g\n",
 				server->malformed_lines));
 
 	for (int i = 0; i < server->rings->size; i++) {
 		stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
-		buffer_produced(server->health_buffer,
-				snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+		buffer_produced(&server->health_buffer,
+				snprintf((char *)buffer_tail(&server->health_buffer), buffer_spacecount(&server->health_buffer),
 					"group_%i.filtered_lines:%" PRIu64 "|g\n",
 					i, group->filtered_lines));
-		buffer_produced(server->health_buffer,
-				snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+		buffer_produced(&server->health_buffer,
+				snprintf((char *)buffer_tail(&server->health_buffer), buffer_spacecount(&server->health_buffer),
 					"group_%i.relayed_lines:%" PRIu64 "|g\n",
 					i, group->relayed_lines));
 	}
@@ -313,39 +313,39 @@ static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, 
 	for (size_t i = 0; i < server->num_backends; i++) {
 		backend = server->backend_list[i];
 
-		buffer_produced(server->health_buffer,
-				snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+		buffer_produced(&server->health_buffer,
+				snprintf((char *)buffer_tail(&server->health_buffer), buffer_spacecount(&server->health_buffer),
 					"backend_%s.bytes_queued:%" PRIu64 "|g\n",
 					backend->metrics_key, backend->bytes_queued));
 
-		buffer_produced(server->health_buffer,
-				snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+		buffer_produced(&server->health_buffer,
+				snprintf((char *)buffer_tail(&server->health_buffer), buffer_spacecount(&server->health_buffer),
 					"backend_%s.bytes_sent:%" PRIu64 "|g\n",
 					backend->metrics_key, backend->bytes_sent));
 
-		buffer_produced(server->health_buffer,
-				snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+		buffer_produced(&server->health_buffer,
+				snprintf((char *)buffer_tail(&server->health_buffer), buffer_spacecount(&server->health_buffer),
 					"backend_%s.relayed_lines:%" PRIu64 "|g\n",
 					backend->metrics_key, backend->relayed_lines));
 
-		buffer_produced(server->health_buffer,
-				snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+		buffer_produced(&server->health_buffer,
+				snprintf((char *)buffer_tail(&server->health_buffer), buffer_spacecount(&server->health_buffer),
 					"backend_%s.dropped_lines:%" PRIu64 "|g\n",
 					backend->metrics_key, backend->dropped_lines));
 
-		buffer_produced(server->health_buffer,
-				snprintf((char *)buffer_tail(server->health_buffer), buffer_spacecount(server->health_buffer),
+		buffer_produced(&server->health_buffer,
+				snprintf((char *)buffer_tail(&server->health_buffer), buffer_spacecount(&server->health_buffer),
 					"backend_%s.failing.boolean:%i|c\n",
 					backend->metrics_key, backend->failing));
 	}
 
-	while (buffer_datacount(server->health_buffer) > 0) {
-		size_t datasize = buffer_datacount(server->health_buffer);
+	while (buffer_datacount(&server->health_buffer) > 0) {
+		size_t datasize = buffer_datacount(&server->health_buffer);
 
 		if (datasize == 0) {
 			break;
 		}
-		head = (char *)buffer_head(server->health_buffer);
+		head = (char *)buffer_head(&server->health_buffer);
 		tail = memchr(head, '\n', datasize);
 		if (tail == NULL) {
 			break;
@@ -354,8 +354,10 @@ static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, 
 		memcpy(line_buffer, head, len);
 		memcpy(line_buffer + len, "\n\0", 2);
 
-		stats_relay_line(line_buffer, len, server, true);
-		buffer_consume(server->health_buffer, len + 1);
+		if (stats_relay_line(line_buffer, len, server, true) != 0) {
+			stats_log("statsrelay: failed to send health metrics");
+		}
+		buffer_consume(&server->health_buffer, len + 1);
 	}
 
 	/**
@@ -382,7 +384,6 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 	server->backend_list = NULL;
 	server->backend_list_monitor = NULL;
 	server->config = config;
-	server->health_buffer = NULL;
 	server->rings = statsrelay_list_new();
 	server->monitor_ring = statsrelay_list_new();
 	{
@@ -453,11 +454,10 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 			server->stats_flusher.data = server;
 			ev_timer_start(server->loop, &server->stats_flusher);
 
-			server->health_buffer = create_buffer(MAX_UDP_LENGTH);
-			if (server->health_buffer == NULL) {
-				stats_log("failed to allocate flush_stats buffer");
+			if (buffer_init(&server->health_buffer) != 0) {
+				stats_log("statsrelay: Unable to initialize health buffer");
 				goto server_create_err;
-			}
+			}		
 		}
 	}
 
@@ -631,6 +631,7 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
 			send_len += group->prefix_len + group->suffix_len;
 		}
 
+		stats_log("sending %s", linebuf);
 		if (tcpclient_sendall(&backend->client, linebuf, send_len + 1) != 0) {
 			backend->dropped_lines++;
 			if (backend->failing == 0) {
@@ -892,9 +893,10 @@ udp_recv_err:
 }
 
 void stats_server_destroy(stats_server_t *server) {
+	stats_log("DELETING server");
 	ev_timer_stop(server->loop, &server->stats_flusher);
 
-	buffer_destroy(server->health_buffer);
+	buffer_destroy(&server->health_buffer);	
 
 	for (int i = 0; i < server->rings->size; i++) {
 		stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];

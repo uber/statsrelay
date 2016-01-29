@@ -79,7 +79,7 @@ struct stats_server_t {
 	/**
 	 * maintain a buffer for stats flush
 	 */
-	buffer_t *health_buffer;
+	buffer_t health_buffer;
 };
 
 typedef struct {
