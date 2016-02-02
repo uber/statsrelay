@@ -258,7 +258,7 @@ static void group_prefix_create(struct additional_config* config, stats_backend_
 }
 
 static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, int events) {
-	ev_tstamp timeout = 15.;
+	ev_tstamp timeout = 15.0;
 	stats_server_t *server= (stats_server_t *)watcher->data;
 
 	ev_timer_stop(loop, &server->stats_flusher);
@@ -273,7 +273,7 @@ static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, 
 	buffer_t *response = create_buffer(MAX_UDP_LENGTH);
 	if (response == NULL) {
 		stats_log("failed to allocate send_statistics buffer");
-		return;
+		goto reset_timer;
 	}
 
 	buffer_produced(response,
@@ -363,17 +363,18 @@ static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, 
 		memcpy(line_buffer + len, "\n\0", 2);
 
 		if (stats_relay_line(line_buffer, len, server, true) != 0) {
-			stats_log("statsrelay: failed to send health metrics");
+			stats_debug_log("statsrelay: failed to send health metrics");
 		}
 		buffer_consume(response, len + 1);
 	}
 
 	delete_buffer(response);
 
+reset_timer:
 	/**
 	 * reset timer
 	 */
-	ev_timer_set(&server->stats_flusher, 15.0, 0.);
+	ev_timer_set(&server->stats_flusher, timeout, 0.);
 	ev_timer_start(server->loop, &server->stats_flusher);	
 }
 
@@ -582,7 +583,7 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
 	list_t ring_ptr = send_to_monitor_cluster ? ss->monitor_ring : ss->rings;
 
 	if (ring_size == 0) {
-		stats_log("%s ring is empty", send_to_monitor_cluster ? "monitor": "generic");
+		stats_debug_log("%s ring is empty", send_to_monitor_cluster ? "monitor": "generic");
 	}
 
 	for (int i = 0; i < ring_size; i++) {
