@@ -463,11 +463,6 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 
 			server->stats_flusher.data = server;
 			ev_timer_start(server->loop, &server->stats_flusher);
-
-			// if (buffer_init(&server->health_buffer) != 0) {
-			// 	stats_log("statsrelay: Unable to initialize health buffer");
-			// 	goto server_create_err;
-			// }		
 		}
 	}
 
@@ -640,9 +635,6 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
 			linebuf = prefix_line_buffer;
 			send_len += group->prefix_len + group->suffix_len;
 		}
-
-		if (send_to_monitor_cluster)
-			stats_log("statsrelay: sending health stats to %s", backend->client.host);
 
 		if (tcpclient_sendall(&backend->client, linebuf, send_len + 1) != 0) {
 			backend->dropped_lines++;
@@ -905,10 +897,7 @@ udp_recv_err:
 }
 
 void stats_server_destroy(stats_server_t *server) {
-	stats_log("DELETING server");
 	ev_timer_stop(server->loop, &server->stats_flusher);
-
-	buffer_destroy(&server->health_buffer);	
 
 	for (int i = 0; i < server->rings->size; i++) {
 		stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];

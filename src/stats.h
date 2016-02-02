@@ -75,11 +75,6 @@ struct stats_server_t {
 
 	/** timer to flush health stats to central cluster **/
 	ev_timer stats_flusher;
-
-	/**
-	 * maintain a buffer for stats flush
-	 */
-	buffer_t health_buffer;
 };
 
 typedef struct {
