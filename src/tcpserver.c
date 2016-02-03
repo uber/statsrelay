@@ -25,6 +25,7 @@ typedef struct tcpsession_t tcpsession_t;
 // tcpserver_t represents an event loop bound to multiple sockets
 struct tcpserver_t {
 	struct ev_loop *loop;
+	bool is_master;
 	tcplistener_t *listeners[MAX_TCP_HANDLERS];
 	int listeners_len;
 	void *data;
@@ -179,6 +180,7 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 		int (*cb_recv)(int, void *, void *)) {
 	tcplistener_t *listener;
 	char addr_string[INET6_ADDRSTRLEN];
+	char sd_buffer[10];
 	void *ip;
 	int port;
 	int yes = 1;
@@ -189,10 +191,23 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 	listener->data = server->data;
 	listener->cb_conn = cb_conn;
 	listener->cb_recv = cb_recv;
-	listener->sd = socket(
+
+	if (!getenv("STATSRELAY_LISTENER_SD")) {
+		listener->sd = socket(
 			addr->ai_family,
 			addr->ai_socktype,
 			addr->ai_protocol);
+
+		snprintf(sd_buffer, 10, "%ld", listener->sd);
+		sd_buffer[strlen(sd_buffer)] = '\0';
+
+		stats_log("statsrelay: master set listening of socket fd %s", sd_buffer);
+		/** setenv to socket fd */
+		setenv("STATSRELAY_LISTENER_SD", sd_buffer, 0);
+	} else {
+		listener->sd = atoi(getenv("STATSRELAY_LISTENER_SD"));
+		stats_log("statsrelay: child reusing the socket descriptor is %ld\n", listener->sd);
+	}
 
 	memset(addr_string, 0, INET6_ADDRSTRLEN);
 	if (addr->ai_family == AF_INET) {
