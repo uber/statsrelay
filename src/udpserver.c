@@ -65,6 +65,7 @@ static void udplistener_recv_callback(struct ev_loop *loop, struct ev_io *watche
 static udplistener_t *udplistener_create(udpserver_t *server, struct addrinfo *addr, bool bind_again, int (*cb_recv)(int, void *)) {
 	udplistener_t *listener;
 	char addr_string[INET6_ADDRSTRLEN];
+	char sd_buffer[10];
 	void *ip;
 	int port;
 	int yes = 1;
@@ -81,7 +82,13 @@ static udplistener_t *udplistener_create(udpserver_t *server, struct addrinfo *a
 				addr->ai_socktype,
 				addr->ai_protocol);
 
-		stats_log("statsrelay: master set to listen on tcp socket fd %d", listener->sd);
+		snprintf(sd_buffer, 10, "%d", listener->sd);
+		sd_buffer[strlen(sd_buffer)] = '\0';
+
+		stats_log("statsrelay: master set to listen on udp socket fd %d", listener->sd);
+
+		/** setenv for hotrestart **/
+		setenv("STATSRELAY_LISTENER_UDP_SD", sd_buffer, 1);
 	} else {
 		listener->sd = atoi(getenv("STATSRELAY_LISTENER_UDP_SD"));
 		stats_log("statsrelay: new master reusing udp socket descriptor %ld", listener->sd);
@@ -123,11 +130,13 @@ static udplistener_t *udplistener_create(udpserver_t *server, struct addrinfo *a
 		return NULL;
 	}
 
-	err = bind(listener->sd, addr->ai_addr, addr->ai_addrlen);
-	if (err != 0) {
-		stats_log("udplistener: Error binding socket for %s[:%i]: %s", addr_string, port, strerror(errno));
-		free(listener);
-		return NULL;
+	if (bind_again) {
+		err = bind(listener->sd, addr->ai_addr, addr->ai_addrlen);
+		if (err != 0) {
+			stats_log("udplistener: Error binding socket for %s[:%i]: %s", addr_string, port, strerror(errno));
+			free(listener);
+			return NULL;
+		}
 	}
 
 	listener->watcher = (struct ev_io *)malloc(sizeof(struct ev_io));

@@ -60,6 +60,13 @@ static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 
 	if (pid) {
 		stats_log("In parent");
+		/**
+		  * 1. Iterate over the listen and ev_io_stop to stop accepting connections
+		  * 2. wait for all the open sockets to be closed (via shutdown, read, close)
+		  * 3. Close listener->sd
+		  * 4. inform rainbow-saddle?
+		  * 5. graceful terminate self (dont know how)
+		  */
 		return 0;
 	}
 

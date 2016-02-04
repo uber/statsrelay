@@ -25,7 +25,6 @@ typedef struct tcpsession_t tcpsession_t;
 // tcpserver_t represents an event loop bound to multiple sockets
 struct tcpserver_t {
 	struct ev_loop *loop;
-	bool is_master;
 	tcplistener_t *listeners[MAX_TCP_HANDLERS];
 	int listener_fds[MAX_TCP_HANDLERS];
 	int listeners_len;
@@ -124,7 +123,7 @@ static void tcpsession_recv_callback(struct ev_loop *loop,
 static void tcplistener_accept_callback(struct ev_loop *loop,
 		struct ev_io *watcher,
 		int revents) {
-	stats_debug_log("in tcplistener_accept_callback");
+	stats_log("in tcplistener_accept_callback mypid: %d, parentpid: %d\n", getpid(), getppid());
 	socklen_t sin_size;
 	tcplistener_t *listener;
 	tcpsession_t *session;
@@ -146,7 +145,7 @@ static void tcplistener_accept_callback(struct ev_loop *loop,
 
 	sin_size = sizeof(session->client_addr);
 	session->sd = accept(watcher->fd, (struct sockaddr *)&session->client_addr, &sin_size);
-	stats_debug_log("tcpserver: accepted new tcp client connection, client fd = %d, tcp server fd = %d", session->sd, watcher->fd);
+	stats_log("tcpserver: accepted new tcp client connection, client fd = %d, tcp server fd = %d", session->sd, watcher->fd);
 	if (session->sd < 0) {
 		stats_error_log("tcplistener: Error accepting connection: %s", strerror(errno));
 		return;
@@ -215,7 +214,7 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 		setenv("STATSRELAY_LISTENER_TCP_SD", sd_buffer, 1);
 	} else {
 		listener->sd = atoi(getenv("STATSRELAY_LISTENER_TCP_SD"));
-		stats_log("statsrelay: new master reusing socket descriptor %ld", listener->sd);
+		stats_log("statsrelay: new master reusing tcp socket descriptor %ld", listener->sd);
 	}
 
 	memset(addr_string, 0, INET6_ADDRSTRLEN);

@@ -53,13 +53,10 @@ static bool connect_server(struct server *server,
 		return false;
 	}
 
-	stats_log("Attempting to bind... tcp");
-
 	if (tcpserver_bind(server->ts, config->bind, !getenv("STATSRELAY_LISTENER_TCP_SD") ? true: false, stats_connection, stats_recv) != 0) {
 		stats_error_log("unable to bind tcp %s", config->bind);
 		return false;
 	}
-	stats_log("Attempting to bind... udp");	
 
 	if (udpserver_bind(server->us, config->bind, !getenv("STATSRELAY_LISTENER_UDP_SD") ? true: false, stats_udp_recv) != 0) {
 		stats_error_log("unable to bind udp %s", config->bind);
