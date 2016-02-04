@@ -43,6 +43,39 @@ static void reload_config(struct ev_loop *loop, ev_signal *w, int revents) {
 	}
 }
 
+static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
+	pid_t pid;
+	stats_log("Received SIGUSR2, hot restarting.");
+	/**
+	 * handle re-exec
+	 */
+	pid = fork();
+
+	if (pid < 0) {
+		stats_error_log("Failed to fork() on SIGUSR2!");
+		stats_log("Shutting down master.");
+		destroy_server_collection(&servers);
+		ev_break(loop, EVBREAK_ALL);
+	}
+
+	if (pid) {
+		stats_log("In parent");
+		return 0;
+	}
+
+	/**
+	 *  execl a copy of new master
+	 */
+	stats_log("child executing.. will attempt reexec");
+	execl("/etc/service/statsrelay/statsrelay-cmd.sh", "/etc/service/statsrelay/statsrelay-cmd.sh");
+
+	/**
+	 * execl failed
+	 */
+	stats_error_log("execl failed");
+	exit(1);
+}
+
 static char* to_lower(const char *input) {
 	char *output = strdup(input);
 	for (int i  = 0; output[i] != '\0'; i++) {
@@ -86,7 +119,7 @@ static void print_help(const char *argv0) {
 }
 
 int main(int argc, char **argv) {
-	ev_signal sigint_watcher, sigterm_watcher, sighup_watcher;
+	ev_signal sigint_watcher, sigterm_watcher, sighup_watcher, sigusr2_watcher, sigwinch_watcher;
 	char *lower;
 	char c = 0;
 	bool just_check_config = false;
@@ -168,6 +201,12 @@ int main(int argc, char **argv) {
 
 	ev_signal_init(&sighup_watcher, reload_config, SIGHUP);
 	ev_signal_start(loop, &sighup_watcher);
+
+	ev_signal_init(&sigusr2_watcher, hot_restart, SIGUSR2);
+	ev_signal_start(loop, &sigusr2_watcher);
+
+	ev_signal_init(&sigwinch_watcher, graceful_shutdown, SIGWINCH);
+	ev_signal_start(loop, &sigwinch_watcher);
 
 	stats_log("main: Starting event loop");
 	ev_run(loop, 0);

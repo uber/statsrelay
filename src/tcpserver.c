@@ -27,6 +27,7 @@ struct tcpserver_t {
 	struct ev_loop *loop;
 	bool is_master;
 	tcplistener_t *listeners[MAX_TCP_HANDLERS];
+	int listener_fds[MAX_TCP_HANDLERS];
 	int listeners_len;
 	void *data;
 };
@@ -176,6 +177,7 @@ tcpserver_t *tcpserver_create(struct ev_loop *loop, void *data) {
 
 static tcplistener_t *tcplistener_create(tcpserver_t *server,
 		struct addrinfo *addr,
+		bool bind_again,
 		void *(*cb_conn)(int, void *),
 		int (*cb_recv)(int, void *, void *)) {
 	tcplistener_t *listener;
@@ -192,21 +194,28 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 	listener->cb_conn = cb_conn;
 	listener->cb_recv = cb_recv;
 
-	if (!getenv("STATSRELAY_LISTENER_SD")) {
-		listener->sd = socket(
-			addr->ai_family,
-			addr->ai_socktype,
-			addr->ai_protocol);
 
-		snprintf(sd_buffer, 10, "%ld", listener->sd);
+	/**
+	 * not a hot restart, create and bind
+	 */
+	if (bind_again) {
+		listener->sd = socket(
+				addr->ai_family,
+				addr->ai_socktype,
+				addr->ai_protocol);
+		snprintf(sd_buffer, 10, "%d", listener->sd);
 		sd_buffer[strlen(sd_buffer)] = '\0';
 
-		stats_log("statsrelay: master set listening of socket fd %s", sd_buffer);
-		/** setenv to socket fd */
-		setenv("STATSRELAY_LISTENER_SD", sd_buffer, 0);
+		stats_log("statsrelay: master set to listen on tcp socket fd %d", listener->sd);
+
+		/** setenv for hotrestart **/
+		/**
+		 * TODO maintain as a comma separated string?
+		 */
+		setenv("STATSRELAY_LISTENER_TCP_SD", sd_buffer, 1);
 	} else {
-		listener->sd = atoi(getenv("STATSRELAY_LISTENER_SD"));
-		stats_log("statsrelay: child reusing the socket descriptor is %ld\n", listener->sd);
+		listener->sd = atoi(getenv("STATSRELAY_LISTENER_TCP_SD"));
+		stats_log("statsrelay: new master reusing socket descriptor %ld", listener->sd);
 	}
 
 	memset(addr_string, 0, INET6_ADDRSTRLEN);
@@ -245,11 +254,16 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 		return NULL;
 	}
 
-	err = bind(listener->sd, addr->ai_addr, addr->ai_addrlen);
-	if (err != 0) {
-		stats_error_log("tcplistener: Error binding socket for %s[:%i]: %s", addr_string, port, strerror(errno));
-		free(listener);
-		return NULL;
+	if (bind_again) {
+		/**
+		 * Bind only once in the original master
+		 */
+		err = bind(listener->sd, addr->ai_addr, addr->ai_addrlen);
+		if (err != 0) {
+			stats_error_log("tcplistener: Error binding socket for %s[:%i]: %s", addr_string, port, strerror(errno));
+			free(listener);
+			return NULL;
+		}
 	}
 
 	err = listen(listener->sd, LISTEN_BACKLOG);
@@ -281,6 +295,7 @@ static void tcplistener_destroy(tcpserver_t *server, tcplistener_t *listener) {
 
 int tcpserver_bind(tcpserver_t *server,
 		const char *address_and_port,
+		bool bind_again,
 		void *(*cb_conn)(int, void *),
 		int (*cb_recv)(int, void *, void *)) {
 	tcplistener_t *listener;
@@ -322,11 +337,13 @@ int tcpserver_bind(tcpserver_t *server,
 			freeaddrinfo(addrs);
 			return 1;
 		}
-		listener = tcplistener_create(server, p, cb_conn, cb_recv);
+		stats_log("creating listener...");
+		listener = tcplistener_create(server, p, bind_again, cb_conn, cb_recv);
 		if (listener == NULL) {
 			continue;
 		}
 		server->listeners[server->listeners_len] = listener;
+		server->listener_fds[server->listeners_len] = listener->sd;
 		server->listeners_len++;
 		ev_io_start(server->loop, listener->watcher);
 	}

@@ -23,6 +23,7 @@ typedef struct udplistener_t udplistener_t;
 struct udpserver_t {
 	struct ev_loop *loop;
 	udplistener_t *listeners[MAX_UDP_HANDLERS];
+	int listener_fds[MAX_UDP_HANDLERS];
 	int listeners_len;
 	void *data;
 };
@@ -61,7 +62,7 @@ static void udplistener_recv_callback(struct ev_loop *loop, struct ev_io *watche
 	}
 }
 
-static udplistener_t *udplistener_create(udpserver_t *server, struct addrinfo *addr, int (*cb_recv)(int, void *)) {
+static udplistener_t *udplistener_create(udpserver_t *server, struct addrinfo *addr, bool bind_again, int (*cb_recv)(int, void *)) {
 	udplistener_t *listener;
 	char addr_string[INET6_ADDRSTRLEN];
 	void *ip;
@@ -73,9 +74,18 @@ static udplistener_t *udplistener_create(udpserver_t *server, struct addrinfo *a
 	listener->loop = server->loop;
 	listener->data = server->data;
 	listener->cb_recv = cb_recv;
-	listener->sd = socket(addr->ai_family,
-			addr->ai_socktype,
-			addr->ai_protocol);
+
+
+	if (bind_again) {
+		listener->sd = socket(addr->ai_family,
+				addr->ai_socktype,
+				addr->ai_protocol);
+
+		stats_log("statsrelay: master set to listen on tcp socket fd %d", listener->sd);
+	} else {
+		listener->sd = atoi(getenv("STATSRELAY_LISTENER_UDP_SD"));
+		stats_log("statsrelay: new master reusing udp socket descriptor %ld", listener->sd);
+	}
 
 	memset(addr_string, 0, INET6_ADDRSTRLEN);
 	if (addr->ai_family == AF_INET) {
@@ -141,6 +151,7 @@ static void udplistener_destroy(udpserver_t *server, udplistener_t *listener) {
 
 int udpserver_bind(udpserver_t *server,
 		const char *address_and_port,
+		bool bind_again,
 		int (*cb_recv)(int, void *)) {
 	udplistener_t *listener;
 	struct addrinfo hints;
@@ -181,11 +192,12 @@ int udpserver_bind(udpserver_t *server,
 			freeaddrinfo(addrs);
 			return 1;
 		}
-		listener = udplistener_create(server, p, cb_recv);
+		listener = udplistener_create(server, p, bind_again, cb_recv);
 		if (listener == NULL) {
 			continue;
 		}
 		server->listeners[server->listeners_len] = listener;
+		server->listener_fds[server->listeners_len] = listener->sd;
 		server->listeners_len++;
 		ev_io_start(server->loop, listener->watcher);
 	}
