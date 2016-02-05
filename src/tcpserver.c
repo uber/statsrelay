@@ -183,7 +183,6 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 		int (*cb_recv)(int, void *, void *)) {
 	tcplistener_t *listener;
 	char addr_string[INET6_ADDRSTRLEN];
-	char sd_buffer[10];
 	void *ip;
 	int port;
 	int yes = 1;
@@ -194,7 +193,6 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 	listener->data = server->data;
 	listener->cb_conn = cb_conn;
 	listener->cb_recv = cb_recv;
-
 
 	/**
 	 * not a hot restart, create and bind

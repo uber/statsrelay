@@ -143,9 +143,6 @@ struct config* parse_json_config(FILE* input) {
 		return NULL;
 	}
 
-	init_proto_config(&config->carbon_config);
-	config->carbon_config.bind = strdup("127.0.0.1:2003");
-
 	init_proto_config(&config->statsd_config);
 	config->statsd_config.bind = strdup("127.0.0.1:8125");
 
@@ -164,13 +161,6 @@ struct config* parse_json_config(FILE* input) {
 	json_t* statsd_json = json_object_get(json, "statsd");
 	if (statsd_json) {
 		if (parse_proto(statsd_json, &config->statsd_config) < 0) {
-			goto parse_error;
-		}
-	}
-
-	json_t* carbon_json = json_object_get(json, "carbon");
-	if (carbon_json) {
-		if (parse_proto(carbon_json, &config->carbon_config) < 0) {
 			goto parse_error;
 		}
 	}
@@ -210,7 +200,6 @@ static void destroy_proto_config(struct proto_config *config) {
 void destroy_json_config(struct config *config) {
 	if (config != NULL) {
 		destroy_proto_config(&config->statsd_config);
-		destroy_proto_config(&config->carbon_config);
 		free(config);
 	}
 }

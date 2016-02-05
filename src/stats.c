@@ -56,8 +56,8 @@ static int add_backend(stats_server_t *server, stats_backend_t *backend, hashrin
 // Find a backend in the backend list; this is used so we don't create
 // duplicate backends. This is linear with the number of actual
 // backends in the file which should be fine for any reasonable
-// configuration (say, less than 10,000 backend statsite or carbon
-// servers). Also note that while this is linear, it only happens
+// configuration (say, less than 10,000 backend statsite.
+// Also note that while this is linear, it only happens
 // during statsrelay initialization, not when running.
 static stats_backend_t *find_backend(stats_backend_t **backend_lists, size_t num_backends, const char *key) {
 	for (size_t i = 0; i < num_backends; i++) {

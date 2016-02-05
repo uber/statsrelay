@@ -84,18 +84,12 @@ void init_server_collection(struct server_collection *server_collection,
 		const char *filename) {
 	server_collection->initialized = true;
 	server_collection->config_file = strdup(filename);
-	init_server(&server_collection->carbon_server);
 	init_server(&server_collection->statsd_server);
 }
 
 bool connect_server_collection(struct server_collection *server_collection,
 		struct config *config) {
 	bool enabled_any = false;
-	enabled_any |= connect_server(&server_collection->carbon_server,
-			&config->carbon_config,
-			protocol_parser_carbon,
-			validate_carbon,
-			"carbon");
 	enabled_any |= connect_server(&server_collection->statsd_server,
 			&config->statsd_config,
 			protocol_parser_statsd,
@@ -110,7 +104,6 @@ bool connect_server_collection(struct server_collection *server_collection,
 void destroy_server_collection(struct server_collection *server_collection) {
 	if (server_collection->initialized) {
 		free(server_collection->config_file);
-		destroy_server(&server_collection->carbon_server);
 		destroy_server(&server_collection->statsd_server);
 		server_collection->initialized = false;
 	}

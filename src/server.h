@@ -20,7 +20,6 @@ struct server_collection {
 	bool initialized;
 	char *config_file;
 	struct server statsd_server;
-	struct server carbon_server;
 };
 
 void init_server_collection(struct server_collection *server_collection,

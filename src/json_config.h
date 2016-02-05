@@ -39,7 +39,6 @@ struct proto_config {
 
 struct config {
 	struct proto_config statsd_config;
-	struct proto_config carbon_config;
 };
 
 

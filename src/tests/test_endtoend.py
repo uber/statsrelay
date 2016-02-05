@@ -70,13 +70,7 @@ class TestCase(unittest.TestCase):
             raise ValueError()
 
         try:
-            self.bind_carbon_port = self.choose_port(sock_type)
             self.bind_statsd_port = self.choose_port(sock_type)
-
-            self.carbon_listener = socket.socket(socket.AF_INET, sock_type)
-            self.carbon_listener.bind(('127.0.0.1', 0))
-            self.carbon_listener.settimeout(SOCKET_TIMEOUT)
-            self.carbon_port = self.carbon_listener.getsockname()[1]
 
             self.statsd_listener = socket.socket(socket.AF_INET, sock_type)
             self.statsd_listener.bind(('127.0.0.1', 0))
@@ -84,16 +78,13 @@ class TestCase(unittest.TestCase):
             self.statsd_port = self.statsd_listener.getsockname()[1]
 
             if mode.lower() == 'tcp':
-                self.carbon_listener.listen(1)
                 self.statsd_listener.listen(1)
 
             new_config = tempfile.NamedTemporaryFile(suffix=suffix)
             with open(config_path) as config_file:
                 data = config_file.read()
             for var, replacement in [
-                    ('BIND_CARBON_PORT', self.bind_carbon_port),
                     ('BIND_STATSD_PORT', self.bind_statsd_port),
-                    ('SEND_CARBON_PORT', self.carbon_port),
                     ('SEND_STATSD_PORT', self.statsd_port),
                     ('TCP_CORK', self.tcp_cork)]:
                 data = data.replace(var, str(replacement))
@@ -102,7 +93,6 @@ class TestCase(unittest.TestCase):
             yield new_config.name
         finally:
             self.statsd_listener.close()
-            self.carbon_listener.close()
 
     def connect(self, sock_type, port):
         if sock_type.lower() == 'tcp':
@@ -287,60 +277,6 @@ class StatsdTestCase(TestCase):
             self.assert_(self.proc.returncode is None)
 
 
-class CarbonTestCase(TestCase):
-
-    def run_checks(self, fd, proto):
-        sender = self.connect('udp', self.bind_carbon_port)
-        sender.sendall('1 2 3\n')
-        self.check_recv(fd, '1 2 3\n')
-        sender.sendall('4 5 6\n')
-        self.check_recv(fd, '4 5 6\n')
-        sender.sendall('\n')           # invalid
-        sender.sendall('1\n')          # invalid
-        sender.sendall('1 2\n')        # invalid
-        sender.sendall('a b c\n')
-        self.check_recv(fd, 'a b c\n')
-        sender.sendall('1 2 3 4\n')    # invalid
-        sender.sendall('1 2 3 4 5\n')  # invalid
-        sender.sendall('d e f\n')
-        self.check_recv(fd, 'd e f\n')
-        sender.sendall('1 2 3\n')
-        self.check_recv(fd, '1 2 3\n')
-
-        sender = self.connect('tcp', self.bind_carbon_port)
-        sender.sendall('status\n')
-        status = self.recv_status(sender)
-        sender.close()
-
-        backends = defaultdict(dict)
-        for line in status.split('\n'):
-            if not line:
-                break
-            if not line.startswith('backend:'):
-                continue
-            backend, key, valuetype, value = line.split(' ', 3)
-            backend = backend.split(':', 1)[1]
-            backends[backend][key] = int(value)
-
-        key = '127.0.0.1:%d:%s' % (
-            self.carbon_listener.getsockname()[1], proto)
-        self.assertEqual(backends[key]['relayed_lines'], 5)
-        self.assertEqual(backends[key]['dropped_lines'], 0)
-        self.assertEqual(backends[key]['bytes_queued'],
-                         backends[key]['bytes_sent'])
-
-    def test_carbon_tcp(self):
-        with self.generate_config('tcp') as config:
-            self.launch_process(config)
-            fd, addr = self.carbon_listener.accept()
-            self.run_checks(fd, 'tcp')
-
-    def test_carbon_udp(self):
-        with self.generate_config('udp') as config:
-            self.launch_process(config)
-            self.run_checks(self.carbon_listener, 'udp')
-
-
 class StathasherTests(unittest.TestCase):
 
     def get_foo(self, config):
@@ -353,15 +289,11 @@ class StathasherTests(unittest.TestCase):
 
     def test_stathasher(self):
         line = self.get_foo('tests/stathasher.json')
-        self.assertEqual(line, 'key=foo carbon=127.0.0.1:2001 carbon_shard=1 statsd=127.0.0.1:3001 statsd_shard=1 process_self_stats=false\n')  # noqa
+        self.assertEqual(line, 'key=foo statsd=127.0.0.1:3001 statsd_shard=1 process_self_stats=false\n')  # noqa
 
     def test_stathasher_empty(self):
         line = self.get_foo('tests/empty.json')
         self.assertEqual(line, 'key=foo\n')
-
-    def test_stathasher_just_carbon(self):
-        line = self.get_foo('tests/stathasher_just_carbon.json')
-        self.assertEqual(line, 'key=foo carbon=127.0.0.1:2001 carbon_shard=1\n')
 
     def test_stathasher_just_statsd(self):
         line = self.get_foo('tests/stathasher_just_statsd.json')
