@@ -144,8 +144,10 @@ static void tcplistener_accept_callback(struct ev_loop *loop,
 	}
 
 	sin_size = sizeof(session->client_addr);
+
+	stats_debug_log("tcplistener: accept on %d mypid: %d, parentpid: %d\n", watcher->fd, getpid(), getppid());
 	session->sd = accept(watcher->fd, (struct sockaddr *)&session->client_addr, &sin_size);
-	stats_log("tcpserver: accepted new tcp client connection, client fd = %d, tcp server fd = %d", session->sd, watcher->fd);
+	stats_debug_log("tcpserver: accepted new tcp client connection, client fd = %d, tcp server fd = %d", session->sd, watcher->fd);
 	if (session->sd < 0) {
 		stats_error_log("tcplistener: Error accepting connection: %s", strerror(errno));
 		return;
@@ -274,6 +276,8 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 
 	listener->watcher = malloc(sizeof(struct ev_io));
 	listener->watcher->data = (void *) listener;
+
+	stats_debug_log("tcpserver: pid: %d ppid:%d has listener sd set to %d", getpid(), getppid(), listener->sd);
 
 	ev_io_init(listener->watcher, tcplistener_accept_callback, listener->sd, EV_READ);
 	stats_log("tcpserver: Listening on frontend %s[:%i], fd = %d",

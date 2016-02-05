@@ -31,4 +31,6 @@ bool connect_server_collection(struct server_collection *server_collection,
 
 void destroy_server_collection(struct server_collection *server_collection);
 
+void stop_tcplistener_watcher(struct server_collection *server_collection);
+
 #endif  // STATSRELAY_SERVER_H

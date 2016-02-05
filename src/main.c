@@ -30,6 +30,10 @@ static struct option long_options[] = {
 	{"no-syslog",           no_argument,            NULL, 'S'},
 };
 
+static char **argv_ptr = NULL;
+static char **envp_ptr = NULL;
+static int num_args = 0;
+
 static void graceful_shutdown(struct ev_loop *loop, ev_signal *w, int revents) {
 	stats_log("Received signal, shutting down.");
 	destroy_server_collection(&servers);
@@ -46,6 +50,7 @@ static void reload_config(struct ev_loop *loop, ev_signal *w, int revents) {
 static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 	pid_t pid;
 	stats_log("Received SIGUSR2, hot restarting.");
+
 	/**
 	 * handle re-exec
 	 */
@@ -71,15 +76,15 @@ static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 	}
 
 	/**
-	 *  execl a copy of new master
+	 *  execv a copy of new master
 	 */
-	stats_log("child executing.. will attempt reexec");
-	execl("/etc/service/statsrelay/statsrelay-cmd.sh", "/etc/service/statsrelay/statsrelay-cmd.sh");
+	stats_log("child executing.. will attempt reexec %s", argv_ptr[0]);
+	execv(argv_ptr[0],  argv_ptr);
 
 	/**
-	 * execl failed
+	 * execv failed
 	 */
-	stats_error_log("execl failed");
+	stats_error_log("execv failed");
 	exit(1);
 }
 
@@ -125,13 +130,17 @@ static void print_help(const char *argv0) {
 			default_config);
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv, char **envp) {
 	ev_signal sigint_watcher, sigterm_watcher, sighup_watcher, sigusr2_watcher, sigwinch_watcher;
 	char *lower;
 	char c = 0;
 	bool just_check_config = false;
 	struct config *cfg = NULL;
 	servers.initialized = false;
+
+	argv_ptr = argv;
+	num_args = argc;
+	envp_ptr = envp;
 
 	stats_set_log_level(STATSRELAY_LOG_INFO);  // set default value
 	while (c != -1) {
