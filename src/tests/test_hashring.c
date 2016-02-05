@@ -9,12 +9,12 @@
 #include <string.h>
 
 
-static void *my_strdup(const char *str, void *data) {
+static void *my_strdup(const char *str, void *data, hashring_type_t is_monitor) {
 	return strdup(str);
 }
 
 static hashring_t create_ring(const char *filename) {
-	hashring_t ring = hashring_init(NULL, my_strdup, free);
+	hashring_t ring = hashring_init(NULL, my_strdup, free, false);
 	assert(ring != NULL);
 
 	FILE *fp = fopen(filename, "r");

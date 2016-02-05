@@ -1,0 +1,17 @@
+{
+  "statsd": {
+    "bind": "127.0.0.1:3004",
+    "shard_map": ["127.0.0.1:8128",
+      "127.0.0.1:8128",
+      "127.0.0.1:8128",
+      "127.0.0.1:8128",
+      "127.0.0.1:8128",
+      "127.0.0.1:8128"
+    ],
+    "self_stats": [{
+      "prefix": "statsd-development.iad.statsrelay.",
+      "suffix": ".test-instance-suffix",
+      "shard_map": ["127.0.0.1:8125"]
+    }]
+  }
+}

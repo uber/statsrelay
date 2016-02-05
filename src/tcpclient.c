@@ -55,9 +55,12 @@ static void tcpclient_connect_timeout(struct ev_loop *loop, struct ev_timer *wat
 }
 
 int tcpclient_init(tcpclient_t *client,
-		   struct ev_loop *loop,
-		   void *callback_context,
-		   struct proto_config *config) {
+		struct ev_loop *loop,
+		void *callback_context,
+		const char* host,
+		const char* port,
+		const char* protocol,
+		struct proto_config *config) {
 	client->state = STATE_INIT;
 	client->loop = loop;
 	client->sd = -1;
@@ -68,6 +71,13 @@ int tcpclient_init(tcpclient_t *client,
 	client->socktype = SOCK_DGRAM;
 	strncpy(client->name, "UNRESOLVED", TCPCLIENT_NAME_LEN);
 
+	client->host = strdup(host);
+	client->port = strdup(port);
+	if (protocol)
+		client->protocol = strdup(protocol);
+	else
+		client->protocol = NULL;
+
 	client->callback_connect = &tcpclient_default_callback;
 	client->callback_sent = &tcpclient_default_callback;
 	client->callback_recv = &tcpclient_default_callback;
@@ -76,9 +86,9 @@ int tcpclient_init(tcpclient_t *client,
 	buffer_init(&client->send_queue);
 	buffer_newsize(&client->send_queue, DEFAULT_BUFFER_SIZE);
 	ev_timer_init(&client->timeout_watcher,
-		      tcpclient_connect_timeout,
-		      TCPCLIENT_CONNECT_TIMEOUT,
-		      0);
+			tcpclient_connect_timeout,
+			TCPCLIENT_CONNECT_TIMEOUT,
+			0);
 
 	client->connect_watcher.started = false;
 	client->read_watcher.started = false;
@@ -171,8 +181,8 @@ static void tcpclient_write_event(struct ev_loop *loop, struct ev_io *watcher, i
 			size_t qsize = buffer_datacount(&client->send_queue);
 			if (client->failing && qsize < client->config->max_send_queue) {
 				stats_log("tcpclient[%s]: client recovered from full queue, send queue is now %zd bytes",
-					  client->name,
-					  qsize);
+						client->name,
+						qsize);
 				client->failing = 0;
 			}
 			if (qsize == 0) {
@@ -226,7 +236,7 @@ static void tcpclient_connected(struct ev_loop *loop, struct ev_io *watcher, int
 	client->callback_connect(client, EVENT_CONNECTED, client->callback_context, NULL, 0);
 }
 
-int tcpclient_connect(tcpclient_t *client, const char *host, const char *port, const char *protocol) {
+int tcpclient_connect(tcpclient_t *client) {
 	struct addrinfo hints;
 	struct addrinfo *addr;
 	int sd;
@@ -240,7 +250,7 @@ int tcpclient_connect(tcpclient_t *client, const char *host, const char *port, c
 		// If backoff timer has expired, change to STATE_INIT and call recursively
 		if ((time(NULL) - client->last_error) > TCPCLIENT_RETRY_TIMEOUT) {
 			tcpclient_set_state(client, STATE_INIT);
-			return tcpclient_connect(client, host, port, protocol);
+			return tcpclient_connect(client);
 		} else {
 			return 2;
 		}
@@ -248,31 +258,32 @@ int tcpclient_connect(tcpclient_t *client, const char *host, const char *port, c
 
 	if (client->state == STATE_INIT) {
 		// Resolve address, create socket, set nonblocking, setup callbacks, fire connect
-		if (client->addr == NULL) {
-			// We only know about tcp and udp, so if we get something unexpected just
-			// default to tcp
-			if (protocol != NULL && strncmp(protocol, "udp", 3) == 0) {
-				client->socktype = SOCK_DGRAM;
-			} else {
-				protocol = "tcp";
-				client->socktype = SOCK_STREAM;
-			}
-			memset(&hints, 0, sizeof(hints));
-			hints.ai_family = AF_UNSPEC;
-			hints.ai_socktype = client->socktype;
-			hints.ai_flags = AI_PASSIVE;
-			if (getaddrinfo(host, port, &hints, &addr) != 0) {
-				stats_error_log("tcpclient: Error resolving backend address %s: %s", host, gai_strerror(errno));
-				client->last_error = time(NULL);
-				tcpclient_set_state(client, STATE_BACKOFF);
-				client->callback_error(client, EVENT_ERROR, client->callback_context, NULL, 0);
-				return 3;
-			}
-			client->addr = addr;
-			snprintf(client->name, TCPCLIENT_NAME_LEN, "%s/%s/%s", host, port, protocol);
-		} else {
-			addr = client->addr;
+		if (client->addr) { // Free prior cache always
+			freeaddrinfo(client->addr);
+			client->addr = NULL;
+
 		}
+		// We only know about tcp and udp, so if we get something unexpected just
+		// default to tcp
+		if (client->protocol != NULL && strncmp(client->protocol, "udp", 3) == 0) {
+			client->socktype = SOCK_DGRAM;
+		} else {
+			client->protocol = "tcp";
+			client->socktype = SOCK_STREAM;
+		}
+		memset(&hints, 0, sizeof(hints));
+		hints.ai_family = AF_UNSPEC;
+		hints.ai_socktype = client->socktype;
+		hints.ai_flags = AI_PASSIVE;
+		if (getaddrinfo(client->host, client->port, &hints, &addr) != 0) {
+			stats_error_log("tcpclient: Error resolving backend address %s: %s", client->host, gai_strerror(errno));
+			client->last_error = time(NULL);
+			tcpclient_set_state(client, STATE_BACKOFF);
+			client->callback_error(client, EVENT_ERROR, client->callback_context, NULL, 0);
+			return 3;
+		}
+		client->addr = addr;
+		snprintf(client->name, TCPCLIENT_NAME_LEN, "%s/%s/%s", client->host, client->port, client->protocol);
 
 		if ((sd = socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol)) < 0) {
 			stats_error_log("tcpclient[%s]: Unable to create socket: %s", client->name, strerror(errno));
@@ -283,14 +294,16 @@ int tcpclient_connect(tcpclient_t *client, const char *host, const char *port, c
 		}
 #ifdef TCP_CORK
 		if (client->config->enable_tcp_cork &&
-		    addr->ai_family == AF_INET &&
-		    addr->ai_socktype == SOCK_STREAM &&
-		    addr->ai_protocol == IPPROTO_TCP) {
+				addr->ai_family == AF_INET &&
+				addr->ai_socktype == SOCK_STREAM &&
+				addr->ai_protocol == IPPROTO_TCP) {
 			int state = 1;
 			if (setsockopt(sd, IPPROTO_TCP, TCP_CORK, &state, sizeof(state))) {
 				stats_error_log("failed to set TCP_CORK");
 			}
 		}
+#else
+		stats_error_log("no TCP_CORK available");
 #endif
 		client->sd = sd;
 
@@ -333,14 +346,9 @@ int tcpclient_connect(tcpclient_t *client, const char *host, const char *port, c
 int tcpclient_sendall(tcpclient_t *client, const char *buf, size_t len) {
 	buffer_t *sendq = &client->send_queue;
 
-	if (client->addr == NULL) {
-		stats_error_log("tcpclient[%s]: Cannot send before connect!", client->name);
-		return 1;
-	} else {
-		// Does nothing if we're already connected, triggers a
-		// reconnect if backoff has expired.
-		tcpclient_connect(client, NULL, NULL, NULL);
-	}
+	// Does nothing if we're already connected, triggers a
+	// reconnect if backoff has expired.
+	tcpclient_connect(client);
 
 	if (buffer_datacount(&client->send_queue) >= client->config->max_send_queue) {
 		if (client->failing == 0) {
@@ -375,7 +383,7 @@ int tcpclient_sendall(tcpclient_t *client, const char *buf, size_t len) {
 	return 0;
 }
 
-void tcpclient_destroy(tcpclient_t *client, int drop_queue) {
+void tcpclient_destroy(tcpclient_t *client) {
 	if (client == NULL) {
 		return;
 	}
@@ -395,10 +403,14 @@ void tcpclient_destroy(tcpclient_t *client, int drop_queue) {
 		ev_io_stop(client->loop, &client->write_watcher.watcher);
 		client->write_watcher.started = false;
 	}
-		stats_debug_log("closing client->sd %d", client->sd);
+	stats_debug_log("closing client->sd %d", client->sd);
 	close(client->sd);
 	if (client->addr != NULL) {
 		freeaddrinfo(client->addr);
+		client->addr = NULL;
 	}
+	free(client->host);
+	free(client->port);
+	client->protocol = NULL;
 	buffer_destroy(&client->send_queue);
 }

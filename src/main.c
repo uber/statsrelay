@@ -6,7 +6,7 @@
 #include "stats.h"
 #include "log.h"
 #include "validate.h"
-#include "yaml_config.h"
+#include "json_config.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -27,6 +27,7 @@ static struct option long_options[] = {
 	{"version",		no_argument,		NULL, 'V'},
 	{"log-level",		required_argument,	NULL, 'l'},
 	{"help",		no_argument,		NULL, 'h'},
+	{"no-syslog",           no_argument,            NULL, 'S'},
 };
 
 static void graceful_shutdown(struct ev_loop *loop, ev_signal *w, int revents) {
@@ -56,7 +57,11 @@ static struct config *load_config(const char *filename) {
 		stats_error_log("failed to open file %s", servers.config_file);
 		return NULL;
 	}
-	struct config *cfg = parse_config(file_handle);
+
+	struct config *cfg;
+
+	cfg = parse_json_config(file_handle);
+
 	fclose(file_handle);
 	return cfg;
 }
@@ -64,19 +69,20 @@ static struct config *load_config(const char *filename) {
 
 static void print_help(const char *argv0) {
 	printf("Usage: %s [options]\n"
-		"  -h, --help                   Display this message\n"
-		"  -v, --verbose                Write log messages to stderr in addition to syslog\n"
-		"                               syslog\n"
-		"  -l, --log-level              Set the logging level to DEBUG, INFO, WARN, or ERROR\n"
-		"                               (default: INFO)\n"
-		"  -c, --config=filename        Use the given hashring config file\n"
-		"                               (default: %s)\n"
-		"  -t, --check-config=filename  Check the config syntax\n"
-		"                               (default: %s)\n"
-		"  --version                    Print the version\n",
-		argv0,
-		default_config,
-		default_config);
+			"  -h, --help                   Display this message\n"
+			"  -S, --no-syslog              Do not write to syslog (use with -v to log to stderr)\n"
+			"  -v, --verbose                Write log messages to stderr in addition to syslog\n"
+			"                               syslog\n"
+			"  -l, --log-level              Set the logging level to DEBUG, INFO, WARN, or ERROR\n"
+			"                               (default: INFO)\n"
+			"  -c, --config=filename        Use the given hashring config file\n"
+			"                               (default: %s)\n"
+			"  -t, --check-config=filename  Check the config syntax\n"
+			"                               (default: %s)\n"
+			"  --version                    Print the version\n",
+			argv0,
+			default_config,
+			default_config);
 }
 
 int main(int argc, char **argv) {
@@ -89,46 +95,49 @@ int main(int argc, char **argv) {
 
 	stats_set_log_level(STATSRELAY_LOG_INFO);  // set default value
 	while (c != -1) {
-		c = getopt_long(argc, argv, "t:c:l:vh", long_options, NULL);
+		c = getopt_long(argc, argv, "t:c:l:vhS", long_options, NULL);
 		switch (c) {
-		case -1:
-			break;
-		case 0:
-		case 'h':
-			print_help(argv[0]);
-			return 1;
-		case 'v':
-			stats_log_verbose(true);
-			break;
-		case 'V':
-			puts(PACKAGE_STRING);
-			return 0;
-		case 'l':
-			lower = to_lower(optarg);
-			if (lower == NULL) {
-				fprintf(stderr, "main: unable to allocate memory\n");
-				goto err;
-			}
-			if (strcmp(lower, "debug") == 0) {
-				stats_set_log_level(STATSRELAY_LOG_DEBUG);
+			case -1:
+				break;
+			case 0:
+			case 'h':
+				print_help(argv[0]);
+				return 1;
+			case 'S':
+				stats_log_syslog(false);
+				break;
+			case 'v':
 				stats_log_verbose(true);
-			} else if (strcmp(lower, "warn") == 0) {
-				stats_set_log_level(STATSRELAY_LOG_WARN);
-			} else if (strcmp(lower, "error") == 0) {
-				stats_set_log_level(STATSRELAY_LOG_ERROR);
-			}
-			free(lower);
-			break;
-		case 'c':
-			init_server_collection(&servers, optarg);
-			break;
-		case 't':
-			init_server_collection(&servers, optarg);
-			just_check_config = true;
-			break;
-		default:
-			fprintf(stderr, "%s: Unknown argument %c\n", argv[0], c);
-			goto err;
+				break;
+			case 'V':
+				puts(PACKAGE_STRING);
+				return 0;
+			case 'l':
+				lower = to_lower(optarg);
+				if (lower == NULL) {
+					fprintf(stderr, "main: unable to allocate memory\n");
+					goto err;
+				}
+				if (strcmp(lower, "debug") == 0) {
+					stats_set_log_level(STATSRELAY_LOG_DEBUG);
+					stats_log_verbose(true);
+				} else if (strcmp(lower, "warn") == 0) {
+					stats_set_log_level(STATSRELAY_LOG_WARN);
+				} else if (strcmp(lower, "error") == 0) {
+					stats_set_log_level(STATSRELAY_LOG_ERROR);
+				}
+				free(lower);
+				break;
+			case 'c':
+				init_server_collection(&servers, optarg);
+				break;
+			case 't':
+				init_server_collection(&servers, optarg);
+				just_check_config = true;
+				break;
+			default:
+				fprintf(stderr, "%s: Unknown argument %c\n", argv[0], c);
+				goto err;
 		}
 	}
 	stats_log(PACKAGE_STRING);
@@ -165,13 +174,13 @@ int main(int argc, char **argv) {
 
 success:
 	destroy_server_collection(&servers);
-	destroy_config(cfg);
+	destroy_json_config(cfg);
 	stats_log_end();
 	return 0;
 
 err:
 	destroy_server_collection(&servers);
-	destroy_config(cfg);
+	destroy_json_config(cfg);
 	stats_log_end();
 	return 1;
 }

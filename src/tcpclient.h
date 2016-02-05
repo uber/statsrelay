@@ -13,7 +13,7 @@
 
 #include <ev.h>
 
-#include "yaml_config.h"
+#include "json_config.h"
 
 #define TCPCLIENT_CONNECT_TIMEOUT 2.0
 #define TCPCLIENT_RETRY_TIMEOUT 1
@@ -62,7 +62,12 @@ typedef struct tcpclient_t {
 	io_watcher_t write_watcher;
 
 	char name[TCPCLIENT_NAME_LEN];
+
 	struct addrinfo *addr;
+	char* host;
+	char* port;
+	char* protocol;
+
 	buffer_t send_queue;
 	enum tcpclient_state state;
 	time_t last_error;
@@ -75,23 +80,21 @@ typedef struct tcpclient_t {
 } tcpclient_t;
 
 int tcpclient_init(tcpclient_t *client,
-		   struct ev_loop *loop,
-		   void *callback_connect,
-		   struct proto_config *config);
+		struct ev_loop *loop,
+		void *callback_connect,
+		const char* host,
+		const char* port,
+		const char* protocol,
+		struct proto_config *config);
 
 void tcpclient_set_sent_callback(tcpclient_t *client,
-				 tcpclient_callback callback);
+		tcpclient_callback callback);
 
-int tcpclient_connect(tcpclient_t *client,
-		      const char *host,
-		      const char *port,
-		      const char *protocol);
+int tcpclient_connect(tcpclient_t *client);
 
 int tcpclient_sendall(tcpclient_t *client,
-		      const char *buf,
-		      size_t len);
+		const char *buf,
+		size_t len);
 
-void tcpclient_destroy(tcpclient_t *client,
-		       int drop_queued);
-
+void tcpclient_destroy(tcpclient_t *client);
 #endif  // STATSRELAY_TCPCLIENT_H

@@ -28,7 +28,7 @@ void* statsrelay_list_expand(list_t list) {
 		} else {
 			list->allocated_size <<= 1;
 			void *newdata = realloc(
-				list->data, sizeof(void *) * list->allocated_size);
+					list->data, sizeof(void *) * list->allocated_size);
 			if (newdata == NULL) {
 				perror("realloc()");
 				return NULL;

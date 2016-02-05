@@ -32,17 +32,17 @@ static uint32_t murmur3_32(const char *key, uint32_t len, uint32_t seed) {
 	uint32_t k1 = 0;
 
 	switch (len & 3) {
-	case 3:
-		k1 ^= tail[2] << 16;
-	case 2:
-		k1 ^= tail[1] << 8;
-	case 1:
-		k1 ^= tail[0];
+		case 3:
+			k1 ^= tail[2] << 16;
+		case 2:
+			k1 ^= tail[1] << 8;
+		case 1:
+			k1 ^= tail[0];
 
-		k1 *= c1;
-		k1 = (k1 << r1) | (k1 >> (32 - r1));
-		k1 *= c2;
-		hash ^= k1;
+			k1 *= c1;
+			k1 = (k1 << r1) | (k1 >> (32 - r1));
+			k1 *= c2;
+			hash ^= k1;
 	}
 
 	hash ^= len;
@@ -57,7 +57,16 @@ static uint32_t murmur3_32(const char *key, uint32_t len, uint32_t seed) {
 
 
 uint32_t stats_hash(const char *key,
-		    uint32_t keylen,
-		    uint32_t output_domain) {
+		uint32_t keylen,
+		uint32_t output_domain) {
 	return murmur3_32(key, keylen, HASHLIB_SEED) % output_domain;
+}
+
+uint32_t stats_hash_key(const char *key,
+		uint32_t keylen) {
+	return murmur3_32(key, keylen, HASHLIB_SEED);
+}
+
+uint32_t stats_hash_domain(uint32_t hash, uint32_t output_domain) {
+	return hash % output_domain;
 }

@@ -1,0 +1,23 @@
+{"statsd":
+ {
+   "bind": "0.0.0.0:3004",
+   "validate": false,
+   "shard_map": ["127.0.0.1:8128",
+      "127.0.0.1:8128",
+      "127.0.0.1:8128",
+      "127.0.0.1:8128",
+      "127.0.0.1:8128",
+      "127.0.0.1:8128"
+    ],
+    "duplicate_to": [{
+          "prefix": "statsd-staging-iad-dup.",
+          "shard_map": ["127.0.0.1:8125"],
+          "suffix": ".dup-instance.statsd-staging-iad-1315e7c4"
+    }],
+    "self_stats": {
+          "prefix": "statsd-staging-iad.",
+          "shard_map": ["statsd-development-iad-onebox.lyft.net:8125", "statsd-development-iad-onebox.lyft.net:8125"],
+          "suffix": ".instance.statsd-staging-iad-1315e7c4"
+    }
+  }
+}

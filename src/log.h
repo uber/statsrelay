@@ -14,6 +14,9 @@ enum statsrelay_log_level {
 // set verbose logging, i.e. send logs to stderr
 void stats_log_verbose(bool verbose);
 
+// set syslog logging, i.e. send logs to syslog (defaults to true)
+void stats_log_syslog(bool syslog);
+
 void stats_set_log_level(enum statsrelay_log_level level);
 
 // variadic log function

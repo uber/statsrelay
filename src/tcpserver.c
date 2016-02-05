@@ -25,6 +25,7 @@ typedef struct tcpsession_t tcpsession_t;
 // tcpserver_t represents an event loop bound to multiple sockets
 struct tcpserver_t {
 	struct ev_loop *loop;
+	bool is_master;
 	tcplistener_t *listeners[MAX_TCP_HANDLERS];
 	int listeners_len;
 	void *data;
@@ -88,8 +89,8 @@ static void tcpsession_destroy(tcpsession_t *session) {
 // Called every time the session socket is readable (data available)
 // if you don't consume it, it'll get called again very quickly
 static void tcpsession_recv_callback(struct ev_loop *loop,
-				     struct ev_io *watcher,
-				     int revents) {
+		struct ev_io *watcher,
+		int revents) {
 	tcpsession_t *session;
 
 	if (revents & EV_ERROR) {
@@ -120,8 +121,8 @@ static void tcpsession_recv_callback(struct ev_loop *loop,
 // Called every time the server socket is readable (new connection to be accepted)
 // if you don't consume it, it'll get called again very quickly
 static void tcplistener_accept_callback(struct ev_loop *loop,
-					struct ev_io *watcher,
-					int revents) {
+		struct ev_io *watcher,
+		int revents) {
 	stats_debug_log("in tcplistener_accept_callback");
 	socklen_t sin_size;
 	tcplistener_t *listener;
@@ -174,11 +175,12 @@ tcpserver_t *tcpserver_create(struct ev_loop *loop, void *data) {
 
 
 static tcplistener_t *tcplistener_create(tcpserver_t *server,
-					 struct addrinfo *addr,
-					 void *(*cb_conn)(int, void *),
-					 int (*cb_recv)(int, void *, void *)) {
+		struct addrinfo *addr,
+		void *(*cb_conn)(int, void *),
+		int (*cb_recv)(int, void *, void *)) {
 	tcplistener_t *listener;
 	char addr_string[INET6_ADDRSTRLEN];
+	char sd_buffer[10];
 	void *ip;
 	int port;
 	int yes = 1;
@@ -189,10 +191,23 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 	listener->data = server->data;
 	listener->cb_conn = cb_conn;
 	listener->cb_recv = cb_recv;
-	listener->sd = socket(
-				addr->ai_family,
-				addr->ai_socktype,
-				addr->ai_protocol);
+
+	if (!getenv("STATSRELAY_LISTENER_SD")) {
+		listener->sd = socket(
+			addr->ai_family,
+			addr->ai_socktype,
+			addr->ai_protocol);
+
+		snprintf(sd_buffer, 10, "%ld", listener->sd);
+		sd_buffer[strlen(sd_buffer)] = '\0';
+
+		stats_log("statsrelay: master set listening of socket fd %s", sd_buffer);
+		/** setenv to socket fd */
+		setenv("STATSRELAY_LISTENER_SD", sd_buffer, 0);
+	} else {
+		listener->sd = atoi(getenv("STATSRELAY_LISTENER_SD"));
+		stats_log("statsrelay: child reusing the socket descriptor is %ld\n", listener->sd);
+	}
 
 	memset(addr_string, 0, INET6_ADDRSTRLEN);
 	if (addr->ai_family == AF_INET) {
@@ -249,7 +264,7 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 
 	ev_io_init(listener->watcher, tcplistener_accept_callback, listener->sd, EV_READ);
 	stats_log("tcpserver: Listening on frontend %s[:%i], fd = %d",
-		  addr_string, port, listener->sd);
+			addr_string, port, listener->sd);
 
 	return listener;
 }
@@ -265,9 +280,9 @@ static void tcplistener_destroy(tcpserver_t *server, tcplistener_t *listener) {
 
 
 int tcpserver_bind(tcpserver_t *server,
-		   const char *address_and_port,
-		   void *(*cb_conn)(int, void *),
-		   int (*cb_recv)(int, void *, void *)) {
+		const char *address_and_port,
+		void *(*cb_conn)(int, void *),
+		int (*cb_recv)(int, void *, void *)) {
 	tcplistener_t *listener;
 	struct addrinfo hints;
 	struct addrinfo *addrs, *p;
