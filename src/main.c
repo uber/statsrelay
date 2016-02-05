@@ -66,13 +66,20 @@ static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 	if (pid) {
 		stats_debug_log("In parent process pid: %d, ppid:%d", getpid(), getppid());
 		stats_debug_log("forked new child process with pid:%d", pid);
+
 		/**
-		  * 1. Iterate over the listen and ev_io_stop to stop accepting connections
-		  * 2. wait for all the open sockets to be closed (via shutdown, read, close)
-		  * 3. Close listener->sd
-		  * 4. inform rainbow-saddle?
-		  * 5. graceful terminate self (dont know how)
-		  */
+		 * commence pseudo graceful shutdown of "Old Master"
+		 * 
+		 * 1. prevent parent from accepting new connections
+		 */
+		stop_accepting_connections(&servers);
+
+		/**
+		 * 2. wait for all the open sockets to be closed (via shutdown, read, close)
+		 * 3. Close listener->sd
+		 * 4. inform rainbow-saddle?
+		 * 5. graceful terminate self (dont know how)
+		 */
 		return 0;
 	}
 

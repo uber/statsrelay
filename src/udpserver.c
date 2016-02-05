@@ -216,6 +216,11 @@ int udpserver_bind(udpserver_t *server,
 	return 0;
 }
 
+void udpserver_stop_accepting_connections(udpserver_t *server) {
+	for (int i = 0; i < server->listeners_len; i++) {
+		udplistener_destroy(server, server->listeners[i]);
+	}
+}
 
 void udpserver_destroy(udpserver_t *server) {
 	int i;

@@ -183,6 +183,7 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 		int (*cb_recv)(int, void *, void *)) {
 	tcplistener_t *listener;
 	char addr_string[INET6_ADDRSTRLEN];
+	char sd_buffer[10];
 	void *ip;
 	int port;
 	int yes = 1;
@@ -208,9 +209,6 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 		stats_log("statsrelay: master set to listen on tcp socket fd %d", listener->sd);
 
 		/** setenv for hotrestart **/
-		/**
-		 * TODO maintain as a comma separated string?
-		 */
 		setenv("STATSRELAY_LISTENER_TCP_SD", sd_buffer, 1);
 	} else {
 		listener->sd = atoi(getenv("STATSRELAY_LISTENER_TCP_SD"));
@@ -358,4 +356,10 @@ void tcpserver_destroy(tcpserver_t *server) {
 		tcplistener_destroy(server, server->listeners[i]);
 	}
 	free(server);
+}
+
+void tcpserver_stop_accepting_connections(tcpserver_t *server) {
+	for (int i = 0; i < server->listeners_len; i++) {
+		tcplistener_destroy(server, server->listeners[i]);
+	}
 }

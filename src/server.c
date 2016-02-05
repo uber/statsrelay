@@ -80,6 +80,37 @@ static void destroy_server(struct server *server) {
 	}
 }
 
+static void destroy_server_watchers(struct server *server) {
+	if (!server->enabled) {
+		return;
+	}
+	if (server->ts != NULL) {
+		tcpserver_stop_accepting_connections(server->ts);
+	}
+	if (server->us != NULL) {
+		udpserver_stop_accepting_connections(server->us);
+	}
+}
+
+char *listenersds_to_string(int *listener_fds, int listeners_len) {
+
+	char *buffer = (char *)malloc(sizeof(char) * 512);
+	int i;
+	unsigned int written = 0;
+
+	for(i = 0; i < listeners_len; i++) {
+		written += snprintf(buffer + written, (512 - written), (i != 0 ? ",%u" : "%u"), *(listener_fds + i));
+		if (written == 512)
+			break;
+	}
+	buffer[written] = '\0';
+	buffer = (char *)realloc(buffer, sizeof(char) * (written + 1));
+
+	stats_debug_log("Listener socket descriptors assembled: %s", buffer);
+
+	return buffer;
+}
+
 void init_server_collection(struct server_collection *server_collection,
 		const char *filename) {
 	server_collection->initialized = true;
@@ -106,5 +137,11 @@ void destroy_server_collection(struct server_collection *server_collection) {
 		free(server_collection->config_file);
 		destroy_server(&server_collection->statsd_server);
 		server_collection->initialized = false;
+	}
+}
+
+void stop_accepting_connections(struct server_collection *server_collection) {
+	if (server_collection->initialized) {
+		destroy_server_watchers(&server_collection->statsd_server);
 	}
 }

@@ -22,6 +22,7 @@ struct server_collection {
 	struct server statsd_server;
 };
 
+
 void init_server_collection(struct server_collection *server_collection,
 		const char *filename);
 
@@ -30,6 +31,6 @@ bool connect_server_collection(struct server_collection *server_collection,
 
 void destroy_server_collection(struct server_collection *server_collection);
 
-void stop_tcplistener_watcher(struct server_collection *server_collection);
+void stop_accepting_connections(struct server_collection *server_collection);
 
 #endif  // STATSRELAY_SERVER_H

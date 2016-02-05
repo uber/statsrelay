@@ -17,4 +17,6 @@ int udpserver_bind(udpserver_t *server,
 		int (*cb_recv)(int, void *));
 void udpserver_destroy(udpserver_t *server);
 
+void udpserver_stop_accepting_connections(udpserver_t *server);
+
 #endif
