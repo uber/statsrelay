@@ -49,7 +49,7 @@ static void reload_config(struct ev_loop *loop, ev_signal *w, int revents) {
 
 static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 	pid_t pid;
-	stats_log("Received SIGUSR2, hot restarting.");
+	stats_log("Received SIGUSR2, hot restarting...");
 
 	/**
 	 * handle re-exec
@@ -64,7 +64,8 @@ static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 	}
 
 	if (pid) {
-		stats_log("In parent");
+		stats_debug_log("In parent process pid: %d, ppid:%d", getpid(), getppid());
+		stats_debug_log("forked new child process with pid:%d", pid);
 		/**
 		  * 1. Iterate over the listen and ev_io_stop to stop accepting connections
 		  * 2. wait for all the open sockets to be closed (via shutdown, read, close)
@@ -78,7 +79,7 @@ static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 	/**
 	 *  execv a copy of new master
 	 */
-	stats_log("child executing.. will attempt reexec %s", argv_ptr[0]);
+	stats_log("reexec %s...", argv_ptr[0]);
 	execv(argv_ptr[0],  argv_ptr);
 
 	/**

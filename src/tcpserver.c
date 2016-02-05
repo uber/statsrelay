@@ -123,7 +123,7 @@ static void tcpsession_recv_callback(struct ev_loop *loop,
 static void tcplistener_accept_callback(struct ev_loop *loop,
 		struct ev_io *watcher,
 		int revents) {
-	stats_log("in tcplistener_accept_callback mypid: %d, parentpid: %d\n", getpid(), getppid());
+	stats_debug_log("in tcplistener_accept_callback pid:%d, parentpid:%d", getpid(), getppid());
 	socklen_t sin_size;
 	tcplistener_t *listener;
 	tcpsession_t *session;
@@ -277,7 +277,7 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 	listener->watcher = malloc(sizeof(struct ev_io));
 	listener->watcher->data = (void *) listener;
 
-	stats_debug_log("tcpserver: pid: %d ppid:%d has listener sd set to %d", getpid(), getppid(), listener->sd);
+	stats_debug_log("tcpserver: pid:%d ppid:%d has listener sd:%d", getpid(), getppid(), listener->sd);
 
 	ev_io_init(listener->watcher, tcplistener_accept_callback, listener->sd, EV_READ);
 	stats_log("tcpserver: Listening on frontend %s[:%i], fd = %d",
@@ -340,7 +340,6 @@ int tcpserver_bind(tcpserver_t *server,
 			freeaddrinfo(addrs);
 			return 1;
 		}
-		stats_log("creating listener...");
 		listener = tcplistener_create(server, p, bind_again, cb_conn, cb_recv);
 		if (listener == NULL) {
 			continue;
