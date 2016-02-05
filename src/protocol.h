@@ -13,7 +13,7 @@
 // parse this string and find the part of the string that refers to the hash
 // key.
 //
-// Since all of the protocols supported (statsd and carbon) have the key at the
+// Since statsd protocol supports having the key at the
 // start of the string, a simplified interace is supported. The return value of
 // the parser is the number of bytes that represent the key.
 //
@@ -21,7 +21,6 @@
 
 typedef size_t (*protocol_parser_t)(const char *, size_t);
 
-size_t protocol_parser_carbon(const char *, size_t);
 size_t protocol_parser_statsd(const char *, size_t);
 
 #endif  // STATSRELAY_PROTOCOL_H

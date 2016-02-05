@@ -109,26 +109,3 @@ statsd_err:
 	free(line_copy);
 	return 1;
 }
-
-int validate_carbon(const char *line, size_t len) {
-	int spaces_found = 0;
-	const char *p = line;
-	size_t n = len;
-	while (1) {
-		const char *s = memchr(p, ' ', n);
-		if (s == NULL) {
-			break;
-		}
-		spaces_found++;
-		n = len - (s - line) - 1;
-		p = s + 1;
-		if (spaces_found > 2) {
-			break;
-		}
-	}
-	if (spaces_found != 2) {
-		stats_log("validate: found %d spaces in invalid carbon line", spaces_found);
-		return 1;
-	}
-	return 0;
-}

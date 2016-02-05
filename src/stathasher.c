@@ -59,12 +59,8 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	hashring_t carbon_ring = NULL, statsd_ring = NULL;
+	hashring_t statsd_ring = NULL;
 
-	if (app_cfg->carbon_config.initialized) {
-		carbon_ring = hashring_load_from_config(
-				app_cfg->carbon_config.ring, NULL, my_strdup, free, RING_DEFAULT);
-	}
 	if (app_cfg->statsd_config.initialized) {
 		process_self_stats = app_cfg->statsd_config.send_self_stats;
 		statsd_ring = hashring_load_from_config(
@@ -86,12 +82,6 @@ int main(int argc, char **argv) {
 			}
 		}
 		printf("key=%s", line);
-		if (carbon_ring != NULL) {
-			choice = hashring_choose(carbon_ring, line, &shard);
-			if (choice != NULL) {
-				printf(" carbon=%s carbon_shard=%d", choice, shard);
-			}
-		}
 		if (statsd_ring != NULL) {
 			choice = hashring_choose(statsd_ring, line, &shard);
 			if (choice != NULL) {
@@ -103,7 +93,6 @@ int main(int argc, char **argv) {
 		fflush(stdout);
 	}
 	free(line);
-	hashring_dealloc(carbon_ring);
 	hashring_dealloc(statsd_ring);
 	return 0;
 }
