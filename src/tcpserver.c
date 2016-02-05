@@ -179,7 +179,6 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 		int (*cb_recv)(int, void *, void *)) {
 	tcplistener_t *listener;
 	char addr_string[INET6_ADDRSTRLEN];
-	char sd_buffer[10];
 	void *ip;
 	int port;
 	int yes = 1;
