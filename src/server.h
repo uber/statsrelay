@@ -30,11 +30,6 @@ bool connect_server_collection(struct server_collection *server_collection,
 
 void destroy_server_collection(struct server_collection *server_collection);
 
-/**
-  * TODO: combine the below two functions
-  */
 void stop_accepting_connections(struct server_collection *server_collection);
-
-void flush_and_kill_clients(struct server_collection *server_collection);
 
 #endif  // STATSRELAY_SERVER_H
