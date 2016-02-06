@@ -11,6 +11,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <ev.h>
+#include <errno.h>
 #include <getopt.h>
 #include <inttypes.h>
 #include <signal.h>
@@ -24,6 +25,7 @@ static struct option long_options[] = {
 	{"config",		required_argument,	NULL, 'c'},
 	{"check-config",	required_argument,	NULL, 't'},
 	{"verbose",		no_argument,		NULL, 'v'},
+	{"pid",			required_argument,	NULL, 'p'},
 	{"version",		no_argument,		NULL, 'V'},
 	{"log-level",		required_argument,	NULL, 'l'},
 	{"help",		no_argument,		NULL, 'h'},
@@ -87,6 +89,9 @@ static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 		 */ 
 		destroy_server_collection(&servers);
 
+
+		ev_break(loop, EVBREAK_ALL);
+
 		/**
 		 * 4. inform child that parent has completed clean up 
 		 */
@@ -95,7 +100,7 @@ static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 		 * 5. hoping rainbow-saddle / process monit will take over
 		 */
 
-		return 0;
+		exit(0);
 	}
 
 	/**
@@ -107,7 +112,7 @@ static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 	/**
 	 * execv failed
 	 */
-	stats_error_log("execv failed");
+	stats_error_log("main: execv failed %s", strerror(errno));
 	exit(1);
 }
 
@@ -143,6 +148,7 @@ static void print_help(const char *argv0) {
 			"                               syslog\n"
 			"  -l, --log-level              Set the logging level to DEBUG, INFO, WARN, or ERROR\n"
 			"                               (default: INFO)\n"
+			"  -p  --pid                	Set the pid file\n"
 			"  -c, --config=filename        Use the given hashring config file\n"
 			"                               (default: %s)\n"
 			"  -t, --check-config=filename  Check the config syntax\n"
@@ -167,7 +173,7 @@ int main(int argc, char **argv, char **envp) {
 
 	stats_set_log_level(STATSRELAY_LOG_INFO);  // set default value
 	while (c != -1) {
-		c = getopt_long(argc, argv, "t:c:l:vhS", long_options, NULL);
+		c = getopt_long(argc, argv, "t:c:l:p:vhS", long_options, NULL);
 		switch (c) {
 			case -1:
 				break;
@@ -184,6 +190,9 @@ int main(int argc, char **argv, char **envp) {
 			case 'V':
 				puts(PACKAGE_STRING);
 				return 0;
+			case 'p':
+				puts("PID file");
+				break;
 			case 'l':
 				lower = to_lower(optarg);
 				if (lower == NULL) {

@@ -83,7 +83,7 @@ static udplistener_t *udplistener_create(udpserver_t *server, struct addrinfo *a
 				addr->ai_protocol);
 
 		snprintf(sd_buffer, 10, "%d", listener->sd);
-		sd_buffer[strlen(sd_buffer)] = '\0';
+		sd_buffer[9] = '\0';
 
 		stats_log("statsrelay: master set to listen on udp socket fd %d", listener->sd);
 

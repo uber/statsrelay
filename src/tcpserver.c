@@ -204,7 +204,7 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 				addr->ai_socktype,
 				addr->ai_protocol);
 		snprintf(sd_buffer, 10, "%d", listener->sd);
-		sd_buffer[strlen(sd_buffer)] = '\0';
+		sd_buffer[9] = '\0';
 
 		stats_log("statsrelay: master set to listen on tcp socket fd %d", listener->sd);
 
