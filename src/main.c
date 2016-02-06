@@ -34,6 +34,8 @@ static char **argv_ptr = NULL;
 static char **envp_ptr = NULL;
 static int num_args = 0;
 
+const useconds_t QUIET_WAIT = 5000000; /* 5 seconds */
+
 static void graceful_shutdown(struct ev_loop *loop, ev_signal *w, int revents) {
 	stats_log("Received signal, shutting down.");
 	destroy_server_collection(&servers);
@@ -75,11 +77,24 @@ static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 		stop_accepting_connections(&servers);
 
 		/**
-		 * 2. wait for all the open sockets to be closed (via shutdown, read, close)
-		 * 3. Close listener->sd
-		 * 4. inform rainbow-saddle?
-		 * 5. graceful terminate self (dont know how)
+		 * 2. Sleep for 5 seconds to allow 
+		 *  sesssion_t buffer to be flushed fully
 		 */
+		usleep(QUIET_WAIT);
+
+		/**
+		 * 3. now close everything in the stats server structure
+		 */ 
+		destroy_server_collection(&servers);
+
+		/**
+		 * 4. inform child that parent has completed clean up 
+		 */
+
+		/**
+		 * 5. hoping rainbow-saddle / process monit will take over
+		 */
+
 		return 0;
 	}
 

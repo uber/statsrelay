@@ -178,7 +178,7 @@ tcpserver_t *tcpserver_create(struct ev_loop *loop, void *data) {
 
 static tcplistener_t *tcplistener_create(tcpserver_t *server,
 		struct addrinfo *addr,
-		bool bind_again,
+		bool rebind,
 		void *(*cb_conn)(int, void *),
 		int (*cb_recv)(int, void *, void *)) {
 	tcplistener_t *listener;
@@ -198,7 +198,7 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 	/**
 	 * not a hot restart, create and bind
 	 */
-	if (bind_again) {
+	if (rebind) {
 		listener->sd = socket(
 				addr->ai_family,
 				addr->ai_socktype,
@@ -251,7 +251,7 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 		return NULL;
 	}
 
-	if (bind_again) {
+	if (rebind) {
 		/**
 		 * Bind only once in the original master
 		 */
@@ -294,7 +294,7 @@ static void tcplistener_destroy(tcpserver_t *server, tcplistener_t *listener) {
 
 int tcpserver_bind(tcpserver_t *server,
 		const char *address_and_port,
-		bool bind_again,
+		bool rebind,
 		void *(*cb_conn)(int, void *),
 		int (*cb_recv)(int, void *, void *)) {
 	tcplistener_t *listener;
@@ -336,7 +336,7 @@ int tcpserver_bind(tcpserver_t *server,
 			freeaddrinfo(addrs);
 			return 1;
 		}
-		listener = tcplistener_create(server, p, bind_again, cb_conn, cb_recv);
+		listener = tcplistener_create(server, p, rebind, cb_conn, cb_recv);
 		if (listener == NULL) {
 			continue;
 		}
@@ -360,6 +360,7 @@ void tcpserver_destroy(tcpserver_t *server) {
 
 void tcpserver_stop_accepting_connections(tcpserver_t *server) {
 	for (int i = 0; i < server->listeners_len; i++) {
+		stats_debug_log("No longer accepting connections %d", getpid());
 		tcplistener_destroy(server, server->listeners[i]);
 	}
 }

@@ -62,7 +62,7 @@ static void udplistener_recv_callback(struct ev_loop *loop, struct ev_io *watche
 	}
 }
 
-static udplistener_t *udplistener_create(udpserver_t *server, struct addrinfo *addr, bool bind_again, int (*cb_recv)(int, void *)) {
+static udplistener_t *udplistener_create(udpserver_t *server, struct addrinfo *addr, bool rebind, int (*cb_recv)(int, void *)) {
 	udplistener_t *listener;
 	char addr_string[INET6_ADDRSTRLEN];
 	char sd_buffer[10];
@@ -77,7 +77,7 @@ static udplistener_t *udplistener_create(udpserver_t *server, struct addrinfo *a
 	listener->cb_recv = cb_recv;
 
 
-	if (bind_again) {
+	if (rebind) {
 		listener->sd = socket(addr->ai_family,
 				addr->ai_socktype,
 				addr->ai_protocol);
@@ -130,7 +130,7 @@ static udplistener_t *udplistener_create(udpserver_t *server, struct addrinfo *a
 		return NULL;
 	}
 
-	if (bind_again) {
+	if (rebind) {
 		err = bind(listener->sd, addr->ai_addr, addr->ai_addrlen);
 		if (err != 0) {
 			stats_log("udplistener: Error binding socket for %s[:%i]: %s", addr_string, port, strerror(errno));
@@ -160,7 +160,7 @@ static void udplistener_destroy(udpserver_t *server, udplistener_t *listener) {
 
 int udpserver_bind(udpserver_t *server,
 		const char *address_and_port,
-		bool bind_again,
+		bool rebind,
 		int (*cb_recv)(int, void *)) {
 	udplistener_t *listener;
 	struct addrinfo hints;
@@ -201,7 +201,7 @@ int udpserver_bind(udpserver_t *server,
 			freeaddrinfo(addrs);
 			return 1;
 		}
-		listener = udplistener_create(server, p, bind_again, cb_recv);
+		listener = udplistener_create(server, p, rebind, cb_recv);
 		if (listener == NULL) {
 			continue;
 		}
