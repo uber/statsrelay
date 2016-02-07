@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <getopt.h>
 #include <inttypes.h>
+#include <malloc.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,6 +41,7 @@ const useconds_t QUIET_WAIT = 5000000; /* 5 seconds */
 
 static void graceful_shutdown(struct ev_loop *loop, ev_signal *w, int revents) {
 	stats_log("Received signal, shutting down.");
+	stop_accepting_connections(&servers);
 	destroy_server_collection(&servers);
 	ev_break(loop, EVBREAK_ALL);
 }
@@ -63,6 +65,7 @@ static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 	if (pid < 0) {
 		stats_error_log("Failed to fork() on SIGUSR2!");
 		stats_log("Shutting down master.");
+		stop_accepting_connections(&servers);
 		destroy_server_collection(&servers);
 		ev_break(loop, EVBREAK_ALL);
 	}
@@ -172,6 +175,15 @@ int main(int argc, char **argv, char **envp) {
 	envp_ptr = envp;
 
 	stats_set_log_level(STATSRELAY_LOG_INFO);  // set default value
+
+	/**
+	  *  detects heap corruption, diagnostic
+	  *  will be logged.
+	  */
+	if (mallopt(M_CHECK_ACTION, 1) != 1) {
+		stats_error_log(stderr, "mallopt() failed: MALLOC_CHECK_ not set");
+	}
+
 	while (c != -1) {
 		c = getopt_long(argc, argv, "t:c:l:p:vhS", long_options, NULL);
 		switch (c) {
@@ -260,12 +272,14 @@ int main(int argc, char **argv, char **envp) {
 	ev_run(loop, 0);
 
 success:
+	stop_accepting_connections(&servers);
 	destroy_server_collection(&servers);
 	destroy_json_config(cfg);
 	stats_log_end();
 	return 0;
 
 err:
+	stop_accepting_connections(&servers);
 	destroy_server_collection(&servers);
 	destroy_json_config(cfg);
 	stats_log_end();
