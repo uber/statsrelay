@@ -181,7 +181,7 @@ int main(int argc, char **argv, char **envp) {
 	  *  will be logged.
 	  */
 	if (mallopt(M_CHECK_ACTION, 1) != 1) {
-		stats_error_log(stderr, "mallopt() failed: MALLOC_CHECK_ not set");
+		stats_error_log("mallopt() failed: MALLOC_CHECK_ not set");
 	}
 
 	while (c != -1) {
