@@ -223,11 +223,6 @@ void udpserver_stop_accepting_connections(udpserver_t *server) {
 }
 
 void udpserver_destroy(udpserver_t *server) {
-	int i;
-
-	for (i = 0; i < server->listeners_len; i++) {
-		udplistener_destroy(server, server->listeners[i]);
-	}
 	//ev_break(server->loop, EVBREAK_ALL);
 	//ev_loop_destroy(server->loop);
 	free(server);

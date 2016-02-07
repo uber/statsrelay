@@ -291,7 +291,6 @@ static void tcplistener_destroy(tcpserver_t *server, tcplistener_t *listener) {
 	free(listener);
 }
 
-
 int tcpserver_bind(tcpserver_t *server,
 		const char *address_and_port,
 		bool rebind,
@@ -352,9 +351,6 @@ int tcpserver_bind(tcpserver_t *server,
 }
 
 void tcpserver_destroy(tcpserver_t *server) {
-	for (int i = 0; i < server->listeners_len; i++) {
-		tcplistener_destroy(server, server->listeners[i]);
-	}
 	free(server);
 }
 
