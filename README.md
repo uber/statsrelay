@@ -48,7 +48,7 @@ Usage: statsrelay [options]
                                syslog
   -l, --log-level              Set the logging level to DEBUG, INFO, WARN, or ERROR
                                (default: INFO)
-  -p  --pid                    Set the pid file"
+  -p  --pid                    Path to the pid file
 
   -c, --config=filename        Use the given hashring config file
                                (default: /etc/statsrelay.json)

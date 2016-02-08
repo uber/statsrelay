@@ -168,7 +168,7 @@ static void print_help(const char *argv0) {
 			"                               syslog\n"
 			"  -l, --log-level              Set the logging level to DEBUG, INFO, WARN, or ERROR\n"
 			"                               (default: INFO)\n"
-			"  -p  --pid                    Set the pid file\n"
+			"  -p  --pid                    Path to the pid file\n"
 			"  -c, --config=filename        Use the given hashring config file\n"
 			"                               (default: %s)\n"
 			"  -t, --check-config=filename  Check the config syntax\n"
