@@ -6,6 +6,7 @@
 #include "stats.h"
 #include "log.h"
 #include "validate.h"
+#include "pidfile.h"
 #include "json_config.h"
 
 #include <assert.h>
@@ -36,11 +37,27 @@ static struct option long_options[] = {
 static char **argv_ptr = NULL;
 static char **envp_ptr = NULL;
 static int num_args = 0;
+static char *pid_file = NULL;
+static int reexec_pid = 0;
 
 const useconds_t QUIET_WAIT = 5000000; /* 5 seconds */
 
 static void graceful_shutdown(struct ev_loop *loop, ev_signal *w, int revents) {
-	stats_log("Received signal, shutting down.");
+	/**
+	 * nuke old pidfile 
+	 */
+	char *buffer = (char *)malloc(sizeof(char) * 100);
+	memset(buffer, '\0', 100);
+
+	if (pid_file != NULL) {
+		strcpy(buffer, pid_file);
+		strcat(buffer, ".oldbin");
+		remove_pid(buffer);
+		stats_log("main: removing the oldbin file");
+	}
+
+	free(buffer);
+	stats_log("main: received signal, shutting down.");
 	stop_accepting_connections(&servers);
 	destroy_server_collection(&servers);
 	ev_break(loop, EVBREAK_ALL);
@@ -54,23 +71,32 @@ static void reload_config(struct ev_loop *loop, ev_signal *w, int revents) {
 }
 
 static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
-	pid_t pid;
-	stats_log("Received SIGUSR2, hot restarting...");
+	pid_t pid, old_pid;
+
+	stats_log("main: received SIGUSR2, hot restarting.");
+
+	/**
+	 * save the pid of the old master
+	 */
+	old_pid = read_pid(pid_file);
 
 	/**
 	 * handle re-exec
 	 */
-	pid = fork();
+	pid = reexec_pid = fork();
 
 	if (pid < 0) {
-		stats_error_log("Failed to fork() on SIGUSR2!");
-		stats_log("Shutting down master.");
+		stats_error_log("main: failed to fork() on SIGUSR2!");
+		stats_log("main: shutting down master.");
 		stop_accepting_connections(&servers);
 		destroy_server_collection(&servers);
 		ev_break(loop, EVBREAK_ALL);
 	}
 
 	if (pid) {
+		char *buffer = (char *)malloc(sizeof(char) * 100);
+		memset(buffer, '\0', 100);
+
 		stats_debug_log("In parent process pid: %d, ppid:%d", getpid(), getppid());
 		stats_debug_log("forked new child process with pid:%d", pid);
 
@@ -87,39 +113,28 @@ static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 		 */
 		usleep(QUIET_WAIT);
 
-		/**
-		 * now close everything in the stats server structure
-		 * also will delete the shared mem
-		 */ 
-		destroy_server_collection(&servers);
+		strcpy(buffer, pid_file);
+		strcat(buffer, ".oldbin");
 
+		stats_log("main: backing up in old pid file %s", buffer);
+
+		write_pid(buffer, old_pid);
+		free(buffer);
+
+		return;
+	} else if (pid == 0) {
 		/**
-		 * Break event loop
+		 *  execv a copy of new master
 		 */
-		ev_break(loop, EVBREAK_ALL);
+		stats_log("main: reexec %s.", argv_ptr[0]);
+		execv(argv_ptr[0],  argv_ptr);
 
 		/**
-		 *  atomic swap the pidfile
+		 * execv failed
 		 */
-
-		/**
-		 *   process monit will take over
-		 */
-
-		exit(0);
+		stats_error_log("main: execv failed %s", strerror(errno));
+		exit(1);
 	}
-
-	/**
-	 *  execv a copy of new master
-	 */
-	stats_log("reexec %s...", argv_ptr[0]);
-	execv(argv_ptr[0],  argv_ptr);
-
-	/**
-	 * execv failed
-	 */
-	stats_error_log("main: execv failed %s", strerror(errno));
-	exit(1);
 }
 
 static char* to_lower(const char *input) {
@@ -133,7 +148,7 @@ static char* to_lower(const char *input) {
 static struct config *load_config(const char *filename) {
 	FILE *file_handle = fopen(filename, "r");
 	if (file_handle == NULL) {
-		stats_error_log("failed to open file %s", servers.config_file);
+		stats_error_log("main: failed to open file %s", servers.config_file);
 		return NULL;
 	}
 
@@ -206,7 +221,7 @@ int main(int argc, char **argv, char **envp) {
 				puts(PACKAGE_STRING);
 				return 0;
 			case 'p':
-				puts("PID file");
+				pid_file = optarg;
 				break;
 			case 'l':
 				lower = to_lower(optarg);
@@ -254,6 +269,8 @@ int main(int argc, char **argv, char **envp) {
 	if (!worked) {
 		goto err;
 	}
+
+	write_pid(pid_file, getpid());
 
 	struct ev_loop *loop = ev_default_loop(0);
 	ev_signal_init(&sigint_watcher, graceful_shutdown, SIGINT);
