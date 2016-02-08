@@ -26,6 +26,7 @@ typedef struct tcpsession_t tcpsession_t;
 struct tcpserver_t {
 	struct ev_loop *loop;
 	tcplistener_t *listeners[MAX_TCP_HANDLERS];
+	int listener_fds[MAX_TCP_HANDLERS];
 	int listeners_len;
 	void *data;
 };
@@ -122,7 +123,7 @@ static void tcpsession_recv_callback(struct ev_loop *loop,
 static void tcplistener_accept_callback(struct ev_loop *loop,
 		struct ev_io *watcher,
 		int revents) {
-	stats_debug_log("in tcplistener_accept_callback");
+	stats_debug_log("in tcplistener_accept_callback pid:%d, parentpid:%d", getpid(), getppid());
 	socklen_t sin_size;
 	tcplistener_t *listener;
 	tcpsession_t *session;
@@ -143,6 +144,8 @@ static void tcplistener_accept_callback(struct ev_loop *loop,
 	}
 
 	sin_size = sizeof(session->client_addr);
+
+	stats_debug_log("tcplistener: accept on %d mypid: %d, parentpid: %d\n", watcher->fd, getpid(), getppid());
 	session->sd = accept(watcher->fd, (struct sockaddr *)&session->client_addr, &sin_size);
 	stats_debug_log("tcpserver: accepted new tcp client connection, client fd = %d, tcp server fd = %d", session->sd, watcher->fd);
 	if (session->sd < 0) {
@@ -175,10 +178,12 @@ tcpserver_t *tcpserver_create(struct ev_loop *loop, void *data) {
 
 static tcplistener_t *tcplistener_create(tcpserver_t *server,
 		struct addrinfo *addr,
+		bool rebind,
 		void *(*cb_conn)(int, void *),
 		int (*cb_recv)(int, void *, void *)) {
 	tcplistener_t *listener;
 	char addr_string[INET6_ADDRSTRLEN];
+	char sd_buffer[10];
 	void *ip;
 	int port;
 	int yes = 1;
@@ -190,11 +195,25 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 	listener->cb_conn = cb_conn;
 	listener->cb_recv = cb_recv;
 
-	listener->sd = socket(
-		addr->ai_family,
-		addr->ai_socktype,
-		addr->ai_protocol);
+	/**
+	 * not a hot restart, create and bind
+	 */
+	if (rebind) {
+		listener->sd = socket(
+				addr->ai_family,
+				addr->ai_socktype,
+				addr->ai_protocol);
+		snprintf(sd_buffer, 10, "%d", listener->sd);
+		sd_buffer[9] = '\0';
 
+		stats_log("statsrelay: master set to listen on tcp socket fd %d", listener->sd);
+
+		/** setenv for hotrestart **/
+		setenv("STATSRELAY_LISTENER_TCP_SD", sd_buffer, 1);
+	} else {
+		listener->sd = atoi(getenv("STATSRELAY_LISTENER_TCP_SD"));
+		stats_log("statsrelay: new master reusing tcp socket descriptor %ld", listener->sd);
+	}
 
 	memset(addr_string, 0, INET6_ADDRSTRLEN);
 	if (addr->ai_family == AF_INET) {
@@ -232,11 +251,16 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 		return NULL;
 	}
 
-	err = bind(listener->sd, addr->ai_addr, addr->ai_addrlen);
-	if (err != 0) {
-		stats_error_log("tcplistener: Error binding socket for %s[:%i]: %s", addr_string, port, strerror(errno));
-		free(listener);
-		return NULL;
+	if (rebind) {
+		/**
+		 * Bind only once in the original master
+		 */
+		err = bind(listener->sd, addr->ai_addr, addr->ai_addrlen);
+		if (err != 0) {
+			stats_error_log("tcplistener: Error binding socket for %s[:%i]: %s", addr_string, port, strerror(errno));
+			free(listener);
+			return NULL;
+		}
 	}
 
 	err = listen(listener->sd, LISTEN_BACKLOG);
@@ -248,6 +272,8 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 
 	listener->watcher = malloc(sizeof(struct ev_io));
 	listener->watcher->data = (void *) listener;
+
+	stats_debug_log("tcpserver: pid:%d ppid:%d has listener sd:%d", getpid(), getppid(), listener->sd);
 
 	ev_io_init(listener->watcher, tcplistener_accept_callback, listener->sd, EV_READ);
 	stats_log("tcpserver: Listening on frontend %s[:%i], fd = %d",
@@ -265,9 +291,9 @@ static void tcplistener_destroy(tcpserver_t *server, tcplistener_t *listener) {
 	free(listener);
 }
 
-
 int tcpserver_bind(tcpserver_t *server,
 		const char *address_and_port,
+		bool rebind,
 		void *(*cb_conn)(int, void *),
 		int (*cb_recv)(int, void *, void *)) {
 	tcplistener_t *listener;
@@ -309,11 +335,12 @@ int tcpserver_bind(tcpserver_t *server,
 			freeaddrinfo(addrs);
 			return 1;
 		}
-		listener = tcplistener_create(server, p, cb_conn, cb_recv);
+		listener = tcplistener_create(server, p, rebind, cb_conn, cb_recv);
 		if (listener == NULL) {
 			continue;
 		}
 		server->listeners[server->listeners_len] = listener;
+		server->listener_fds[server->listeners_len] = listener->sd;
 		server->listeners_len++;
 		ev_io_start(server->loop, listener->watcher);
 	}
@@ -324,8 +351,12 @@ int tcpserver_bind(tcpserver_t *server,
 }
 
 void tcpserver_destroy(tcpserver_t *server) {
+	free(server);
+}
+
+void tcpserver_stop_accepting_connections(tcpserver_t *server) {
 	for (int i = 0; i < server->listeners_len; i++) {
+		stats_debug_log("No longer accepting connections %d", getpid());
 		tcplistener_destroy(server, server->listeners[i]);
 	}
-	free(server);
 }

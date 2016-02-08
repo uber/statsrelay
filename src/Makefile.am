@@ -1,6 +1,6 @@
 AM_CFLAGS=-O2 -g3 -std=c99 -pedantic -Wall -fno-strict-aliasing -D_XOPEN_SOURCE=700 -D_DEFAULT_SOURCE -D_BSD_SOURCE
 bin_PROGRAMS=statsrelay stathasher stresstest
-BASE_SOURCES=buffer.c hashlib.c hashring.c list.c log.c protocol.c tcpclient.c tcpserver.c udpserver.c server.c stats.c validate.c json_config.c filter.c
+BASE_SOURCES=buffer.c hashlib.c hashring.c list.c log.c protocol.c tcpclient.c tcpserver.c udpserver.c server.c stats.c validate.c json_config.c filter.c pidfile.c
 statsrelay_SOURCES=$(BASE_SOURCES) main.c
 stathasher_SOURCES=hashlib.c hashring.c list.c log.c stathasher.c json_config.c
 stresstest_SOURCES=stresstest.c

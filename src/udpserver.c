@@ -23,6 +23,7 @@ typedef struct udplistener_t udplistener_t;
 struct udpserver_t {
 	struct ev_loop *loop;
 	udplistener_t *listeners[MAX_UDP_HANDLERS];
+	int listener_fds[MAX_UDP_HANDLERS];
 	int listeners_len;
 	void *data;
 };
@@ -61,9 +62,10 @@ static void udplistener_recv_callback(struct ev_loop *loop, struct ev_io *watche
 	}
 }
 
-static udplistener_t *udplistener_create(udpserver_t *server, struct addrinfo *addr, int (*cb_recv)(int, void *)) {
+static udplistener_t *udplistener_create(udpserver_t *server, struct addrinfo *addr, bool rebind, int (*cb_recv)(int, void *)) {
 	udplistener_t *listener;
 	char addr_string[INET6_ADDRSTRLEN];
+	char sd_buffer[10];
 	void *ip;
 	int port;
 	int yes = 1;
@@ -73,9 +75,24 @@ static udplistener_t *udplistener_create(udpserver_t *server, struct addrinfo *a
 	listener->loop = server->loop;
 	listener->data = server->data;
 	listener->cb_recv = cb_recv;
-	listener->sd = socket(addr->ai_family,
-			addr->ai_socktype,
-			addr->ai_protocol);
+
+
+	if (rebind) {
+		listener->sd = socket(addr->ai_family,
+				addr->ai_socktype,
+				addr->ai_protocol);
+
+		snprintf(sd_buffer, 10, "%d", listener->sd);
+		sd_buffer[9] = '\0';
+
+		stats_log("statsrelay: master set to listen on udp socket fd %d", listener->sd);
+
+		/** setenv for hotrestart **/
+		setenv("STATSRELAY_LISTENER_UDP_SD", sd_buffer, 1);
+	} else {
+		listener->sd = atoi(getenv("STATSRELAY_LISTENER_UDP_SD"));
+		stats_log("statsrelay: new master reusing udp socket descriptor %ld", listener->sd);
+	}
 
 	memset(addr_string, 0, INET6_ADDRSTRLEN);
 	if (addr->ai_family == AF_INET) {
@@ -113,11 +130,13 @@ static udplistener_t *udplistener_create(udpserver_t *server, struct addrinfo *a
 		return NULL;
 	}
 
-	err = bind(listener->sd, addr->ai_addr, addr->ai_addrlen);
-	if (err != 0) {
-		stats_log("udplistener: Error binding socket for %s[:%i]: %s", addr_string, port, strerror(errno));
-		free(listener);
-		return NULL;
+	if (rebind) {
+		err = bind(listener->sd, addr->ai_addr, addr->ai_addrlen);
+		if (err != 0) {
+			stats_log("udplistener: Error binding socket for %s[:%i]: %s", addr_string, port, strerror(errno));
+			free(listener);
+			return NULL;
+		}
 	}
 
 	listener->watcher = (struct ev_io *)malloc(sizeof(struct ev_io));
@@ -141,6 +160,7 @@ static void udplistener_destroy(udpserver_t *server, udplistener_t *listener) {
 
 int udpserver_bind(udpserver_t *server,
 		const char *address_and_port,
+		bool rebind,
 		int (*cb_recv)(int, void *)) {
 	udplistener_t *listener;
 	struct addrinfo hints;
@@ -181,11 +201,12 @@ int udpserver_bind(udpserver_t *server,
 			freeaddrinfo(addrs);
 			return 1;
 		}
-		listener = udplistener_create(server, p, cb_recv);
+		listener = udplistener_create(server, p, rebind, cb_recv);
 		if (listener == NULL) {
 			continue;
 		}
 		server->listeners[server->listeners_len] = listener;
+		server->listener_fds[server->listeners_len] = listener->sd;
 		server->listeners_len++;
 		ev_io_start(server->loop, listener->watcher);
 	}
@@ -195,13 +216,13 @@ int udpserver_bind(udpserver_t *server,
 	return 0;
 }
 
-
-void udpserver_destroy(udpserver_t *server) {
-	int i;
-
-	for (i = 0; i < server->listeners_len; i++) {
+void udpserver_stop_accepting_connections(udpserver_t *server) {
+	for (int i = 0; i < server->listeners_len; i++) {
 		udplistener_destroy(server, server->listeners[i]);
 	}
+}
+
+void udpserver_destroy(udpserver_t *server) {
 	//ev_break(server->loop, EVBREAK_ALL);
 	//ev_loop_destroy(server->loop);
 	free(server);

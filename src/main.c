@@ -6,13 +6,16 @@
 #include "stats.h"
 #include "log.h"
 #include "validate.h"
+#include "pidfile.h"
 #include "json_config.h"
 
 #include <assert.h>
 #include <ctype.h>
 #include <ev.h>
+#include <errno.h>
 #include <getopt.h>
 #include <inttypes.h>
+#include <malloc.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,14 +27,37 @@ static struct option long_options[] = {
 	{"config",		required_argument,	NULL, 'c'},
 	{"check-config",	required_argument,	NULL, 't'},
 	{"verbose",		no_argument,		NULL, 'v'},
+	{"pid",			required_argument,	NULL, 'p'},
 	{"version",		no_argument,		NULL, 'V'},
 	{"log-level",		required_argument,	NULL, 'l'},
 	{"help",		no_argument,		NULL, 'h'},
 	{"no-syslog",           no_argument,            NULL, 'S'},
 };
 
+static char **argv_ptr = NULL;
+static char **envp_ptr = NULL;
+static int num_args = 0;
+static char *pid_file = NULL;
+static int reexec_pid = 0;
+
+const useconds_t QUIET_WAIT = 5000000; /* 5 seconds */
+
 static void graceful_shutdown(struct ev_loop *loop, ev_signal *w, int revents) {
-	stats_log("Received signal, shutting down.");
+	/**
+	 * nuke old pidfile 
+	 */
+	char *buffer = (char *)malloc(sizeof(char) * 100);
+	memset(buffer, '\0', 100);
+
+	if (pid_file != NULL) {
+		strcpy(buffer, pid_file);
+		strcat(buffer, ".oldbin");
+		remove_pid(buffer);
+		stats_log("main: removing the oldbin file");
+	}
+
+	free(buffer);
+	stats_log("main: received signal, shutting down.");
 	destroy_server_collection(&servers);
 	ev_break(loop, EVBREAK_ALL);
 }
@@ -40,6 +66,73 @@ static void reload_config(struct ev_loop *loop, ev_signal *w, int revents) {
 	stats_log("Received SIGHUP, reloading.");
 	if (server != NULL) {
 		stats_server_reload(server);
+	}
+}
+
+static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
+	pid_t pid, old_pid;
+
+	stats_log("main: received SIGUSR2, hot restarting.");
+
+	/**
+	 * save the pid of the old master
+	 */
+	old_pid = read_pid(pid_file);
+
+	/**
+	 * handle re-exec
+	 */
+	pid = reexec_pid = fork();
+
+	if (pid < 0) {
+		stats_error_log("main: failed to fork() on SIGUSR2!");
+		stats_log("main: shutting down master.");
+		stop_accepting_connections(&servers);
+		destroy_server_collection(&servers);
+		ev_break(loop, EVBREAK_ALL);
+	}
+
+	if (pid) {
+		char *buffer = (char *)malloc(sizeof(char) * 100);
+		memset(buffer, '\0', 100);
+
+		stats_debug_log("In parent process pid: %d, ppid:%d", getpid(), getppid());
+		stats_debug_log("forked new child process with pid:%d", pid);
+
+		/**
+		 * commence pseudo graceful shutdown of "Old Master"
+		 * 
+		 * prevent parent from accepting new connections
+		 */
+		stop_accepting_connections(&servers);
+
+		/**
+		 *  Sleep for 5 seconds to allow
+		 *  sesssion_t buffer to be flushed fully
+		 */
+		usleep(QUIET_WAIT);
+
+		strcpy(buffer, pid_file);
+		strcat(buffer, ".oldbin");
+
+		stats_log("main: backing up in old pid file %s", buffer);
+
+		write_pid(buffer, old_pid);
+		free(buffer);
+
+		return;
+	} else if (pid == 0) {
+		/**
+		 *  execv a copy of new master
+		 */
+		stats_log("main: reexec %s.", argv_ptr[0]);
+		execv(argv_ptr[0],  argv_ptr);
+
+		/**
+		 * execv failed
+		 */
+		stats_error_log("main: execv failed %s", strerror(errno));
+		exit(1);
 	}
 }
 
@@ -54,7 +147,7 @@ static char* to_lower(const char *input) {
 static struct config *load_config(const char *filename) {
 	FILE *file_handle = fopen(filename, "r");
 	if (file_handle == NULL) {
-		stats_error_log("failed to open file %s", servers.config_file);
+		stats_error_log("main: failed to open file %s", servers.config_file);
 		return NULL;
 	}
 
@@ -75,6 +168,7 @@ static void print_help(const char *argv0) {
 			"                               syslog\n"
 			"  -l, --log-level              Set the logging level to DEBUG, INFO, WARN, or ERROR\n"
 			"                               (default: INFO)\n"
+			"  -p  --pid                	Set the pid file\n"
 			"  -c, --config=filename        Use the given hashring config file\n"
 			"                               (default: %s)\n"
 			"  -t, --check-config=filename  Check the config syntax\n"
@@ -85,17 +179,30 @@ static void print_help(const char *argv0) {
 			default_config);
 }
 
-int main(int argc, char **argv) {
-	ev_signal sigint_watcher, sigterm_watcher, sighup_watcher;
+int main(int argc, char **argv, char **envp) {
+	ev_signal sigint_watcher, sigterm_watcher, sighup_watcher, sigusr2_watcher, sigwinch_watcher;
 	char *lower;
 	char c = 0;
 	bool just_check_config = false;
 	struct config *cfg = NULL;
 	servers.initialized = false;
 
+	argv_ptr = argv;
+	num_args = argc;
+	envp_ptr = envp;
+
 	stats_set_log_level(STATSRELAY_LOG_INFO);  // set default value
+
+	/**
+	 *  detects heap corruption, diagnostic
+	 *  will be logged.
+	 */
+	if (mallopt(M_CHECK_ACTION, 1) != 1) {
+		stats_error_log("mallopt() failed: MALLOC_CHECK_ not set");
+	}
+
 	while (c != -1) {
-		c = getopt_long(argc, argv, "t:c:l:vhS", long_options, NULL);
+		c = getopt_long(argc, argv, "t:c:l:p:vhS", long_options, NULL);
 		switch (c) {
 			case -1:
 				break;
@@ -112,6 +219,9 @@ int main(int argc, char **argv) {
 			case 'V':
 				puts(PACKAGE_STRING);
 				return 0;
+			case 'p':
+				pid_file = optarg;
+				break;
 			case 'l':
 				lower = to_lower(optarg);
 				if (lower == NULL) {
@@ -159,6 +269,8 @@ int main(int argc, char **argv) {
 		goto err;
 	}
 
+	write_pid(pid_file, getpid());
+
 	struct ev_loop *loop = ev_default_loop(0);
 	ev_signal_init(&sigint_watcher, graceful_shutdown, SIGINT);
 	ev_signal_start(loop, &sigint_watcher);
@@ -169,16 +281,24 @@ int main(int argc, char **argv) {
 	ev_signal_init(&sighup_watcher, reload_config, SIGHUP);
 	ev_signal_start(loop, &sighup_watcher);
 
+	ev_signal_init(&sigusr2_watcher, hot_restart, SIGUSR2);
+	ev_signal_start(loop, &sigusr2_watcher);
+
+	ev_signal_init(&sigwinch_watcher, graceful_shutdown, SIGWINCH);
+	ev_signal_start(loop, &sigwinch_watcher);
+
 	stats_log("main: Starting event loop");
 	ev_run(loop, 0);
 
 success:
+	stop_accepting_connections(&servers);
 	destroy_server_collection(&servers);
 	destroy_json_config(cfg);
 	stats_log_end();
 	return 0;
 
 err:
+	stop_accepting_connections(&servers);
 	destroy_server_collection(&servers);
 	destroy_json_config(cfg);
 	stats_log_end();

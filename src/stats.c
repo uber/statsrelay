@@ -187,7 +187,7 @@ static void* make_backend(const char *host_and_port, void *data, hashring_type_t
 		backend->metrics_key = full_key_metrics;
 	}
 
-	stats_log("The metrics key for grafana is %s", backend->metrics_key);
+	stats_debug_log("metrics key is %s", backend->metrics_key);
 	tcpclient_set_sent_callback(&backend->client, stats_sent);
 	add_backend(server, backend, r_type);
 	stats_debug_log("initialized new backend %s", backend->key);
@@ -541,7 +541,7 @@ void stats_server_reload(stats_server_t *server) {
 void *stats_connection(int sd, void *ctx) {
 	stats_session_t *session;
 
-	stats_debug_log("stats: accepted client connection on fd %d", sd);
+	stats_log("stats: accepted client connection on fd %d", sd);
 	session = (stats_session_t *) malloc(sizeof(stats_session_t));
 	if (session == NULL) {
 		stats_log("stats: Unable to allocate memory");
@@ -897,6 +897,7 @@ udp_recv_err:
 	return 1;
 }
 
+
 void stats_server_destroy(stats_server_t *server) {
 	ev_timer_stop(server->loop, &server->stats_flusher);
 
@@ -923,6 +924,7 @@ void stats_server_destroy(stats_server_t *server) {
 		stats_backend_t *backend = server->backend_list_monitor[i];
 		kill_backend(backend);
 	}
+
 	free(server->backend_list);
 	free(server->backend_list_monitor);
 
