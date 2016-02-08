@@ -58,7 +58,6 @@ static void graceful_shutdown(struct ev_loop *loop, ev_signal *w, int revents) {
 
 	free(buffer);
 	stats_log("main: received signal, shutting down.");
-	stop_accepting_connections(&servers);
 	destroy_server_collection(&servers);
 	ev_break(loop, EVBREAK_ALL);
 }
