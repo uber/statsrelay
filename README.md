@@ -159,24 +159,40 @@ expand to more, everything will work.
 
 ## Hot restarts
 
-Statsrelay support hot-restarts, thereby allowing you to have 0
-downtime deploys, this happens with the support of [rainbow-saddle](https://github.com/flupke/rainbow-saddle/blob/develop/README.rst)
-RUNIT monitor rainbow-saddle pidfile, while rainbow saddle sends
-the appropriate signals to it child (statsrelay binary).
+Statsrelay support hot-restarts, thereby allowing you to have zero
+downtime deploys, this happens with the help of
+[rainbow-saddle](https://github.com/flupke/rainbow-saddle/blob/develop/README.rst)
+RUNIT monitors rainbow-saddle pidfile, while rainbow saddle handles relaying the right signals
+to the statsrelay arbiter.
 
 Example:
 ```bash
-$ rainbow-saddle --gunicorn-pidfile /tmp/statsrelay.pid --pid /tmp/rainbow-saddle.pid ./statsrelay -c conf/statsrelay_test.json
+$ rainbow-saddle --gunicorn-pidfile /run/statsrelay/statsrelay.pid --pid /run/statsrelay/rainbow-saddle.pid /usr/local/bin/statsrelay --config=/etc/statsrelay.json
 ```
 
-Upon SIGHUP to `cat /tmp/rainbow-saddle.pid` it passes SIGUSR2
-to underlying statsrelay, which forks and exec's a new statsrelay master
-which atomically swap out the `--gunicorn-pidfile` with its PID and also
-creates a file with PID of the old master (for ex: `/tmp/statsrelay.pid.oldbin`)
+Upon receiving
 
 ```bash
-# Reexec a new statsrelay master
+kill -SIGHUP `cat /run/statsrelay/rainbow-saddle.pid`
+```
+
+Rainbow saddle sends:
+
+1. kill -SIGUSR2 to statsrelay arbiter master (identified by `/run/statsrelay/statsrelay.pid`)
+
+  * statsrelay arbiter forks and re-execs a new copy of statsrelay binary, which starts listening on the same sockets and starts accepting connections.
+  * the old statsrelay arbiter master, stops accepting connections once the new master is up and accepting connections
+  * Old master touches `/run/statsrelay/statsrelay.oldbin` after the TCPListener buffer has been drained (which prevents data loss)
+
+2. Gracefully shutdown the old master by sending `kill -SIGTERM` to process identified by `statsrelay.oldbin` pidfile
+
+ * the old master performs necessary cleanup and frees up of resources
+ * rainbow-saddle starts monitoring the new statsrelay arbiter.
+(does not rebind). Once the new master is up and is taking traffic
+
+```bash
+# Reexec a new statsrelay master, stops old master from accepting new connections
 /bin/kill -s USR2 `cat "$PID"`
-# Graceful stop old master
+# Graceful stop old master, once all the tcplistener buffers have been drained.
 /bin/kill -s TERM `cat "$PIDOLD"`
 ```
