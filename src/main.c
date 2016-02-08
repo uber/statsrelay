@@ -168,7 +168,7 @@ static void print_help(const char *argv0) {
 			"                               syslog\n"
 			"  -l, --log-level              Set the logging level to DEBUG, INFO, WARN, or ERROR\n"
 			"                               (default: INFO)\n"
-			"  -p  --pid                	Set the pid file\n"
+			"  -p  --pid                    Set the pid file\n"
 			"  -c, --config=filename        Use the given hashring config file\n"
 			"                               (default: %s)\n"
 			"  -t, --check-config=filename  Check the config syntax\n"
@@ -269,7 +269,9 @@ int main(int argc, char **argv, char **envp) {
 		goto err;
 	}
 
-	write_pid(pid_file, getpid());
+	if (pid_file != NULL) {
+		write_pid(pid_file, getpid());
+	}
 
 	struct ev_loop *loop = ev_default_loop(0);
 	ev_signal_init(&sigint_watcher, graceful_shutdown, SIGINT);
