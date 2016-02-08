@@ -77,30 +77,33 @@ static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 		/**
 		 * commence pseudo graceful shutdown of "Old Master"
 		 * 
-		 * 1. prevent parent from accepting new connections
+		 * prevent parent from accepting new connections
 		 */
 		stop_accepting_connections(&servers);
 
 		/**
-		 * 2. Sleep for 5 seconds to allow 
+		 *  Sleep for 5 seconds to allow
 		 *  sesssion_t buffer to be flushed fully
 		 */
 		usleep(QUIET_WAIT);
 
 		/**
-		 * 3. now close everything in the stats server structure
+		 * now close everything in the stats server structure
+		 * also will delete the shared mem
 		 */ 
 		destroy_server_collection(&servers);
 
-
+		/**
+		 * Break event loop
+		 */
 		ev_break(loop, EVBREAK_ALL);
 
 		/**
-		 * 4. inform child that parent has completed clean up 
+		 *  atomic swap the pidfile
 		 */
 
 		/**
-		 * 5. hoping rainbow-saddle / process monit will take over
+		 *   process monit will take over
 		 */
 
 		exit(0);
@@ -177,9 +180,9 @@ int main(int argc, char **argv, char **envp) {
 	stats_set_log_level(STATSRELAY_LOG_INFO);  // set default value
 
 	/**
-	  *  detects heap corruption, diagnostic
-	  *  will be logged.
-	  */
+	 *  detects heap corruption, diagnostic
+	 *  will be logged.
+	 */
 	if (mallopt(M_CHECK_ACTION, 1) != 1) {
 		stats_error_log("mallopt() failed: MALLOC_CHECK_ not set");
 	}
