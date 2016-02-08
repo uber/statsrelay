@@ -1,5 +1,5 @@
 # statsrelay
-A consistent-hashing relay for statsd and carbon metrics
+A consistent-hashing relay for statsd metrics
 
 [![Build Status](https://travis-ci.org/lyft/statsrelay.svg?branch=master)](https://travis-ci.org/lyft/statsrelay)
 
@@ -65,8 +65,7 @@ This process will run in the foreground. If you need to daemonize, use
 start-stop-script, daemontools, supervisord, upstart, systemd, or your
 preferred service watchdog.
 
-By default statsrelay binds to 127.0.0.1:8125 for statsd proxying, and
-it binds to 127.0.0.1:2003 for carbon proxying.
+By default statsrelay binds to 127.0.0.1:8125 for statsd proxying.
 
 For each line that statsrelay receives in the statsd format
 "statname.foo.bar:1|c\n", the key will be hashed to determine which
@@ -116,35 +115,34 @@ backend:127.0.0.2:8127:tcp dropped_lines gauge 0
 # Scaling With Virtual Shards
 
 Statsrelay implements a virtual sharding scheme, which allows you to
-easily scale your statsd and carbon backends by reassigning virtual
-shards to actual statsd/carbon instance or servers. This technique
+easily scale your statsd backends by reassigning virtual
+shards to actual statsd instance or servers. This technique
 also applies to alternative statsd implementations like statsite.
 
 Consider the following simplified example with this config file:
 
 ```json
-{"carbon": {
-    "bind": "127.0.0.1:2004",
-    "shard_map": ["127.0.0.1:2000",
-                  "127.0.0.1:2001",
-                  "127.0.0.1:2002",
-                  "127.0.0.1:2003"]
+{"statsd": {
+    "bind": "127.0.0.1:8126",
+    "shard_map": ["10.0.0.1:8128",
+                  "10.0.0.1:8128",
+                  "10.0.0.2:8128",
+                  "10.0.0.2:8128"]
 }
 }
 ```
 
 In this file we've defined two actual backend hosts (10.0.0.1 and
-10.0.0.2). Each of these hosts is running two statsd instances, one on
-port 9000 and one on port 9001 (this is a good way to scale statsd,
-since statsd and alternative implementations like statsite are
-typically single threaded). In a real setup, you'd likely be running
-more statsd instances on each server, and you'd likely have more
-repeated lines to assign more virtual shards to each statsd
-instance. 
+10.0.0.2). Each of these hosts is running two statsd instances, on
+port 8128 (this is a good way to scale statsd, since statsd and
+alternative implementations like statsite are typically single
+threaded). In a real setup, you'd likely be running more statsd
+instances on each server, and you'd likely have more repeated
+lines to assign more virtual shards to each statsd instance. 
 
 Internally statsrelay assigns a zero-indexed virtual shard to each
-line in the file; so 10.0.0.1:9000 has virtual shards 0 and 1,
-10.0.0.1:9001 has virtual shards 2 and 3, and so on.
+line in the file; so 10.0.0.1:8128 has virtual shards 0 and 1,
+10.0.0.2:8128 has virtual shards 2 and 3, and so on.
 
 To do optimal shard assignment, you'll want to write a program that
 looks at the CPU usage of your shards and figures out the optimal
@@ -156,33 +154,29 @@ the virtual shards on those hosts to less loaded hosts (or to new
 hosts).
 
 If you don't initially assign enough virtual shards and then later
-expand to more, everything will work, but data migration for carbon
-will be a bit trickier; see below.
+expand to more, everything will work.
 
-## A Note On Carbon Scaling
 
-Statsrelay can do relaying for carbon lines just like statsd. The
-strategy for scaling carbon using virtual shards is exactly the
-same. One important difference, however, is that when you move a
-carbon shard you'll want to move the associated whisper files as
-well. You can do this using the `stathasher` binary that is built by
-statsrelay. By pointing that command at your statsrelay config, you
-can send it key names on stdin and have the virtual shard ids printed
-to stdout.
+## Hot restarts
 
-Using this technique you can script the reassignment of whisper
-files. The general idea is to walk the filesystem and gather all of
-the unique keys stored in carbon backends on a host. You can then get
-an idea for how expensive each virtual shard is based on the storage
-space, number of whisper files, and possibly I/O metrics for each
-virtual shard. By gathering the weights for each virtual shard on a
-host, you can figure out the optimal way to redistribute the mapping
-of virtual shards to actual carbon backends.
+Statsrelay support hot-restarts, thereby allowing you to have 0
+downtime deploys, this happens with the support of [rainbow-saddle](https://github.com/flupke/rainbow-saddle/blob/develop/README.rst)
+RUNIT monitor rainbow-saddle pidfile, while rainbow saddle sends
+the appropriate signals to it child (statsrelay binary).
 
-Note that when you move carbon instances, you also probably want to
-migrate the whisper files as well. This ensures that you retain
-historical data, and that graphite will get the right answer if it
-queries multiple carbon backends. You can migrate the whisper files by
-rsyncing the files you've identified as belonging to a moved virtual
-shard using the `stathasher` binary described above. Remember to take
-care to ensure that the old whisper files are deleted on the old host.
+Example:
+```bash
+$ rainbow-saddle --gunicorn-pidfile /tmp/statsrelay.pid --pid /tmp/rainbow-saddle.pid ./statsrelay -c conf/statsrelay_test.json
+```
+
+Upon SIGHUP to `cat /tmp/rainbow-saddle.pid` it passes SIGUSR2
+to underlying statsrelay, which forks and exec's a new statsrelay master
+which atomically swap out the `--gunicorn-pidfile` with its PID and also
+creates a file with PID of the old master (for ex: `/tmp/statsrelay.pid.oldbin`)
+
+```bash
+# Reexec a new statsrelay master
+/bin/kill -s USR2 `cat "$PID"`
+# Graceful stop old master
+/bin/kill -s TERM `cat "$PIDOLD"`
+```
