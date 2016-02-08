@@ -161,7 +161,7 @@ expand to more, everything will work.
 
 Statsrelay support hot-restarts, thereby allowing you to have zero
 downtime deploys, this happens with the help of
-[rainbow-saddle](https://github.com/flupke/rainbow-saddle/blob/develop/README.rst)
+[rainbow-saddle](https://github.com/flupke/rainbow-saddle/blob/develop/README.rst).
 RUNIT monitors rainbow-saddle pidfile, while rainbow saddle handles relaying the right signals
 to the statsrelay arbiter.
 
