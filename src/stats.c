@@ -541,7 +541,7 @@ void stats_server_reload(stats_server_t *server) {
 void *stats_connection(int sd, void *ctx) {
 	stats_session_t *session;
 
-	stats_log("stats: accepted client connection on fd %d", sd);
+	stats_debug_log("stats: accepted client connection on fd %d", sd);
 	session = (stats_session_t *) malloc(sizeof(stats_session_t));
 	if (session == NULL) {
 		stats_log("stats: Unable to allocate memory");

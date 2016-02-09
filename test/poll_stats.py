@@ -5,8 +5,9 @@ import sys
 
 def get_stats():
     s = socket.socket()
-    s.connect(('127.0.0.1', 8125))
-    s.sendall('status\n')
+    s.connect(('127.0.0.1', 8127))
+    #s.sendall('foo.bar:1|c\n')
+    s.sendall("status\n");
     lines = s.recv(65536)
     result = defaultdict(int)
     for line in lines.split('\n'):

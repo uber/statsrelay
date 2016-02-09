@@ -4,8 +4,8 @@ import socket
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--port', type=int, default=8125)
-    parser.add_argument('-n', '--num-stats', type=int, default=0)
+    parser.add_argument('-p', '--port', type=int, default=3004)
+    parser.add_argument('-n', '--num-stats', type=int, default=10)
     parser.add_argument('-r', '--reconnect-interval', type=int, default=0)
     parser.add_argument('--word-file')
     args = parser.parse_args()
@@ -34,6 +34,7 @@ if __name__ == '__main__':
             x += 1
             print x, count
             stat = word + ':1|c\n'
+	    print("sending {0}".format(stat));
             sock.sendall(stat)
             if count and x >= count:
                 break_out = True
