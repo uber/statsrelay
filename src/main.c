@@ -112,12 +112,14 @@ static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 		 */
 		usleep(QUIET_WAIT);
 
-		strcpy(buffer, pid_file);
-		strcat(buffer, ".oldbin");
+		if (old_pid != 0) {
+			strcpy(buffer, pid_file);
+			strcat(buffer, ".oldbin");
 
-		stats_log("main: backing up in old pid file %s", buffer);
+			stats_log("main: backing up in old pid file %s", buffer);
 
-		write_pid(buffer, old_pid);
+			write_pid(buffer, old_pid);
+		}
 		free(buffer);
 
 		return;
