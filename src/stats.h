@@ -96,8 +96,6 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
 
 size_t stats_num_backends(stats_server_t *server);
 
-void stats_server_reload(stats_server_t *server);
-
 void stats_server_destroy(stats_server_t *server);
 
 // ctx is a (void *) cast of the stats_server_t instance.
