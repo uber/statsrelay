@@ -77,19 +77,16 @@ add_err:
 }
 
 size_t hashring_size(hashring_t ring) {
-	if (ring == NULL) {
+	if (ring == NULL || ring->backends == NULL) {
 		return 0;
 	}
 	return ring->backends->size;
 }
 
-void* hashring_choose(struct hashring *ring,
+void* hashring_choose(hashring_t ring,
 		      const char *key,
 		      uint32_t *shard_num) {
-	if (ring == NULL || ring->backends == NULL) {
-		return NULL;
-	}
-	const size_t ring_size = ring->backends->size;
+	const size_t ring_size = hashring_size(ring);
 	if (ring_size == 0) {
 		return NULL;
 	}
@@ -100,11 +97,12 @@ void* hashring_choose(struct hashring *ring,
 	return ring->backends->data[index];
 }
 
-void hashring_dealloc(struct hashring *ring) {
+void hashring_dealloc(hashring_t ring) {
 	if (ring == NULL) {
 		return;
 	}
 	if (ring->backends == NULL) {
+		free(ring);
 		return;
 	}
 	const size_t ring_size = ring->backends->size;

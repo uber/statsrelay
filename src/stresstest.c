@@ -22,9 +22,10 @@ static void print_help(const char *progname) {
 
 int main(int argc, char **argv) {
 	uint16_t port = 0;
-	const char *stat_names = NULL;
+	char *stat_names = NULL;
 	int option_index = 0;
 	char c;
+	FILE *fp = NULL;
 	while ((c = getopt_long(argc, argv, "p:s:h", long_options, &option_index)) != -1) {
 		switch (c) {
 		case 0:
@@ -70,7 +71,7 @@ int main(int argc, char **argv) {
 		goto err;
 	}
 
-	FILE *fp = fopen(stat_names, "r");
+	fp = fopen(stat_names, "r");
 	if (fp == NULL) {
 		goto err;
 	}
@@ -132,8 +133,14 @@ int main(int argc, char **argv) {
 	       (unsigned long) total_micros,
 	       total_micros / lines_sent);
 
+	fclose(fp);
+	free(stat_names);
 	return 0;
 
 err:
+	if (fp != NULL) {
+		fclose(fp);
+	}
+	free(stat_names);
 	return 1;
 }
