@@ -3,7 +3,7 @@
 
 #include "vector.h"
 
-vector_t* vector_init(vector_t *v, int init_size) {
+vector_t* vector_init(vector_t *v, unsigned int init_size) {
 	v->capacity = init_size;
 	v->size_factor = init_size;
 	v->count = 0;
@@ -19,13 +19,16 @@ int vector_capacity(vector_t *v) {
 	return v->capacity;
 }
 
-static void vector_resize(vector_t *v, int capacity) {
+static void vector_resize(vector_t *v, unsigned int capacity) {
 	stats_debug_log("vector_resize: %d to %d", v->capacity, capacity);
 
 	void **items = realloc(v->items, sizeof(void *) * capacity);
 	if (items) {
 		v->items = items;
 		v->capacity = capacity;
+	} else {
+        perror("realloc() failure");
+        return NULL;
 	}
 }
 
@@ -37,14 +40,14 @@ void vector_insert(vector_t *v, void *item) {
 	v->items[v->count++] = item;
 }
 
-void *vector_fetch(vector_t *v, int index) {
+void *vector_fetch(vector_t *v, unsigned int index) {
 	if (index >= 0 && index < v->count) {
 		return v->items[index];
 	}
 	return NULL;
 }
 
-void vector_delete_at(vector_t *v, int index) {
+void vector_delete_at(vector_t *v, unsigned int index) {
 	if (index < 0 || index >= v->count)
 		return;
 
@@ -65,6 +68,11 @@ void vector_delete_at(vector_t *v, int index) {
 
 void vector_free(vector_t *v) {
 	free(v->items);
-	v->capacity = 0;
-	v->count = 0;
+	free(v);
+}
+
+void vector_free_all(vector_t *v) {
+	for (unsigned int i = 0; i < v->count; i++) {
+		free(v->items[i]);
+	}
 }

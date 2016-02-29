@@ -100,6 +100,6 @@ int main(int argc, char **argv) {
 	assert(t_session == NULL);
 
 	// Test free function
-	vector_free(vectorRef);
+	vector_free_all(vectorRef);
 	return 0;
 }

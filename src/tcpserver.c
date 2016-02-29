@@ -120,7 +120,7 @@ static void tcplistener_accept_callback(struct ev_loop *loop,
 	socklen_t sin_size;
 	tcplistener_t *listener;
 	tcpsession_t *session;
-	int err, vector_sz;
+	int err;
 
 	if (revents & EV_ERROR) {
 		// ev(3) says this is an error of "unspecified" type, so
@@ -349,13 +349,13 @@ int tcpserver_bind(tcpserver_t *server,
 static void tcpsession_client_close(tcplistener_t *listener) {
 	tcpsession_t *session;
 	vector_t *sdRef;
-	int vector_sz;
+	unsigned int vector_sz, v_index;
 
 	sdRef = &listener->sdList;
 	vector_sz = vector_count(sdRef);
 
 	stats_debug_log("tcpserver: number of sockets to shutdown %d", vector_sz);
-	for (int v_index = 0; v_index < vector_sz; v_index++) {
+	for (v_index = 0; v_index < vector_sz; v_index++) {
 		session = (tcpsession_t *)vector_fetch(sdRef, v_index);
 		if (session != NULL) {
 			stats_log("Send close to %d", session->sd);
@@ -376,13 +376,13 @@ static void tcpsession_kill_watchers(tcplistener_t *listener) {
 
 	tcpsession_t *session;
 	vector_t *sdRef;
-	int vector_sz;
+	unsigned int vector_sz, v_index;
 
 	sdRef = &listener->sdList;
 	vector_sz = vector_count(sdRef);
 
-	stats_debug_log("tcpserver: number of sockets to kill watchers on %d", vector_sz);
-	for (int v_index = 0; v_index < vector_sz; v_index++) {
+	stats_debug_log("tcpserver: number of tcp sessions to kill watchers on %d", vector_sz);
+	for (v_index = 0; v_index < vector_sz; v_index++) {
 		session = (tcpsession_t *)vector_fetch(sdRef, v_index);
 
 		if (session != NULL) {
@@ -392,7 +392,7 @@ static void tcpsession_kill_watchers(tcplistener_t *listener) {
 			free(session);
 		}
 	}
-	vector_free(sdRef);
+	vector_free_all(sdRef);
 }
 
 static void tcplistener_free(tcplistener_t *listener) {

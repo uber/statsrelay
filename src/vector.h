@@ -7,14 +7,14 @@
 #include <stdbool.h>
 
 typedef struct vector {
-	int capacity;
-	int size_factor;
-	int count;
+	unsigned int capacity;
+	unsigned int size_factor;
+	unsigned int count;
 	void **items;
 } vector_t;
 
 // Initialize the vector of given size
-vector_t* vector_init(vector_t *, int);
+vector_t* vector_init(vector_t *, unsigned int);
 
 // Returns the total number
 // of elements in vector
@@ -30,13 +30,17 @@ void vector_insert(vector_t *, void *);
 
 // Fetches an item at given index
 // return NULL if the index is out of bounds
-void *vector_fetch(vector_t *, int);
+void *vector_fetch(vector_t *, unsigned int);
 
 // Delete the item in the vector
 // at the given index.
-void vector_delete_at(vector_t *, int);
+void vector_delete_at(vector_t *, unsigned int);
 
 // Free
 void vector_free(vector_t *);
+
+// Free all
+void vector_free_all(vector_t *v);
+
 
 #endif
