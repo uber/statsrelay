@@ -82,7 +82,6 @@ static void tcpsession_destroy(tcpsession_t *session) {
      * and remove it from the list
      */
 	if (session->sdPtr != NULL) {
-		stats_debug_log("tcpsession: removing %d, from SD vector", session->sd);
 		vector_remove(session->sdPtr, session->sd);
 	}
 
