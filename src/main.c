@@ -63,11 +63,11 @@ static void graceful_shutdown(struct ev_loop *loop, ev_signal *w, int revents) {
 }
 
 static void quick_shutdown(struct ev_loop *loop, ev_signal *w, int revents) {
-    stats_log("main: received signal, immediate shut down.");
-    stop_accepting_connections(&servers);
-    shutdown_client_sockets(&servers);
-    destroy_server_collection(&servers);
-    ev_break(loop, EVBREAK_ALL);
+	stats_log("main: received signal, immediate shut down.");
+	stop_accepting_connections(&servers);
+	shutdown_client_sockets(&servers);
+	destroy_server_collection(&servers);
+	ev_break(loop, EVBREAK_ALL);
 }
 
 
@@ -90,8 +90,8 @@ static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 		stats_error_log("main: failed to fork() on SIGUSR2!");
 		stats_log("main: shutting down master.");
 		stop_accepting_connections(&servers);
-        shutdown_client_sockets(&servers);
-        destroy_server_collection(&servers);
+		shutdown_client_sockets(&servers);
+		destroy_server_collection(&servers);
 		ev_break(loop, EVBREAK_ALL);
 	}
 
@@ -109,11 +109,11 @@ static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 		 */
 		stop_accepting_connections(&servers);
 
-        /**
-         * Inform the connected tcp clients
-         * and wait to drain the read buffers
-         */
-        shutdown_client_sockets(&servers);
+		/**
+		 * Inform the connected tcp clients
+		 * and wait to drain the read buffers
+		 */
+		shutdown_client_sockets(&servers);
 
 		/**
 		 *  Sleep for 5 seconds to allow
@@ -299,7 +299,7 @@ int main(int argc, char **argv, char **envp) {
 
 success:
 	stop_accepting_connections(&servers);
-    shutdown_client_sockets(&servers);
+	shutdown_client_sockets(&servers);
 	destroy_server_collection(&servers);
 	destroy_json_config(cfg);
 	stats_log_end();
@@ -307,7 +307,7 @@ success:
 
 err:
 	stop_accepting_connections(&servers);
-    shutdown_client_sockets(&servers);
+	shutdown_client_sockets(&servers);
 	destroy_server_collection(&servers);
 	destroy_json_config(cfg);
 	stats_log_end();

@@ -102,9 +102,9 @@ static void destroy_session_sockets(struct server *server) {
 }
 
 /**
-  * TODO: currently unused
-  * update tcp and udp servers to use it
-  */
+ * TODO: currently unused
+ * update tcp and udp servers to use it
+ */
 char *listenersds_to_string(int *listener_fds, int listeners_len) {
 
 	char *buffer = (char *)malloc(sizeof(char) * 512);
