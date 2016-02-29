@@ -14,6 +14,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <time.h>
+#include <errno.h>
 #include <unistd.h>
 
 #include <ev.h>
@@ -147,7 +148,6 @@ static void tcpclient_read_event(struct ev_loop *loop, struct ev_io *watcher, in
 	client->callback_recv(client, EVENT_RECV, client->callback_context, buf, len);
 
 }
-
 
 static void tcpclient_write_event(struct ev_loop *loop, struct ev_io *watcher, int events) {
 	tcpclient_t *client = (tcpclient_t *)watcher->data;
@@ -385,26 +385,29 @@ int tcpclient_sendall(tcpclient_t *client, const char *buf, size_t len) {
 
 void tcpclient_destroy(tcpclient_t *client) {
 	if (client == NULL) {
+		stats_debug_log("tcpclient: client is not defined, nothing to destroy!");
 		return;
 	}
 	ev_timer_stop(client->loop, &client->timeout_watcher);
 	if (client->connect_watcher.started) {
-		stats_debug_log("tcpclient_destroy: stopping connect watcher");
+		stats_log("tcpclient_destroy: stopping connect watcher");
 		ev_io_stop(client->loop, &client->connect_watcher.watcher);
 		client->connect_watcher.started = false;
 	}
 	if (client->read_watcher.started) {
-		stats_debug_log("tcpclient_destroy: stopping read watcher");
+		stats_log("tcpclient_destroy: stopping read watcher");
 		ev_io_stop(client->loop, &client->read_watcher.watcher);
 		client->read_watcher.started = false;
 	}
 	if (client->write_watcher.started) {
-		stats_debug_log("tcpclient_destroy: stopping write watcher");
+		stats_log("tcpclient_destroy: stopping write watcher");
 		ev_io_stop(client->loop, &client->write_watcher.watcher);
 		client->write_watcher.started = false;
 	}
-	stats_debug_log("closing client->sd %d", client->sd);
-	close(client->sd);
+	stats_log("tcpclient: closing %d", client->sd);
+	if (close(client->sd) < 0) {
+		stats_error_log("tcpclient: close failed: %s", strerror(errno));
+	}
 	if (client->addr != NULL) {
 		freeaddrinfo(client->addr);
 		client->addr = NULL;

@@ -92,6 +92,15 @@ static void destroy_server_watchers(struct server *server) {
 	}
 }
 
+static void destroy_session_sockets(struct server *server) {
+	if (!server->enabled) {
+		return;
+	}
+	if (server->ts != NULL) {
+		tcpserver_destroy_session_sockets(server->ts);
+	}
+}
+
 /**
   * TODO: currently unused
   * update tcp and udp servers to use it
@@ -136,16 +145,22 @@ bool connect_server_collection(struct server_collection *server_collection,
 	return enabled_any;
 }
 
+void stop_accepting_connections(struct server_collection *server_collection) {
+	if (server_collection->initialized) {
+		destroy_server_watchers(&server_collection->statsd_server);
+	}
+}
+
+void shutdown_client_sockets(struct server_collection *server_collection) {
+	if (server_collection->initialized) {
+		destroy_session_sockets(&server_collection->statsd_server);
+	}
+}
+
 void destroy_server_collection(struct server_collection *server_collection) {
 	if (server_collection->initialized) {
 		free(server_collection->config_file);
 		destroy_server(&server_collection->statsd_server);
 		server_collection->initialized = false;
-	}
-}
-
-void stop_accepting_connections(struct server_collection *server_collection) {
-	if (server_collection->initialized) {
-		destroy_server_watchers(&server_collection->statsd_server);
 	}
 }
