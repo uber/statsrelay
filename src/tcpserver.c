@@ -14,8 +14,6 @@
 #include <string.h>
 #include <ev.h>
 
-#define WAIT_TIME 5000000
-
 static tcpsession_t *tcpsession_create(tcplistener_t *listener) {
 	tcpsession_t *session;
 
@@ -367,13 +365,6 @@ static void tcpsession_client_close(tcplistener_t *listener) {
 }
 
 static void tcpsession_kill_watchers(tcplistener_t *listener) {
-	/**
-	 * Sleep for a second to allow
-	 * the data to be transferred out
-	 * to the backend client
-	 */
-	usleep(WAIT_TIME);
-
 	tcpsession_t *session;
 	vector_t *sdRef;
 	unsigned int vector_sz, v_index;

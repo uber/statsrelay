@@ -28,7 +28,6 @@ static void vector_resize(vector_t *v, unsigned int capacity) {
 		v->capacity = capacity;
 	} else {
         perror("realloc() failure");
-        return NULL;
 	}
 }
 
