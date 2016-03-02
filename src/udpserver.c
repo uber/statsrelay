@@ -156,7 +156,7 @@ static void udplistener_destroy(udpserver_t *server, udplistener_t *listener) {
 	}
 	stats_log("udpserver: closing udpserver socket %d", listener->sd);
 	if (close(listener->sd) < 0) {
-		stats_error_log("udpsession: attempting to close: %s", listener->sd, strerror(errno));
+		stats_error_log("udpsession: close failed: %s", strerror(errno));
 	}
 	free(listener);
 }

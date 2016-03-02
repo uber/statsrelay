@@ -385,7 +385,6 @@ int tcpclient_sendall(tcpclient_t *client, const char *buf, size_t len) {
 
 void tcpclient_destroy(tcpclient_t *client) {
 	if (client == NULL) {
-		stats_debug_log("tcpclient: client is not defined, nothing to destroy!");
 		return;
 	}
 	ev_timer_stop(client->loop, &client->timeout_watcher);

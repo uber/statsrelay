@@ -103,7 +103,7 @@ static void tcpsession_recv_callback(struct ev_loop *loop,
 	}
 
 	if (session->cb_recv(session->sd, session->data, session->ctx) != 0) {
-		stats_error_log("tcpsession: recv callback returned non-zero, closing connection");
+		//stats_error_log("tcpsession: recv callback returned non-zero, closing connection");
 		tcpsession_destroy(session);
 		return;
 	}
@@ -356,7 +356,7 @@ static void tcpsession_client_close(tcplistener_t *listener) {
 	for (v_index = 0; v_index < vector_sz; v_index++) {
 		session = (tcpsession_t *)vector_fetch(sdRef, v_index);
 		if (session != NULL) {
-			stats_log("Send close to %d", session->sd);
+			stats_log("tcpsession: close sd %d", session->sd);
 			if (shutdown(session->sd, SHUT_WR) < 0) {
 				stats_error_log("tcpserver: shutdown socket close error %s", strerror(errno));
 			}
