@@ -383,11 +383,6 @@ static void tcpsession_kill_watchers(tcplistener_t *listener) {
 	}
 	// free up the session descriptor vector
 	vector_free_all(sdRef);
-
-	stats_log("tcplistener: close listening tcp socket %d", listener->sd);
-	if (close(listener->sd) < 0) {
-		stats_error_log("tcplistener: attempting close tcp socket failed, %s", strerror(errno));
-	}
 	free(listener);
 }
 
