@@ -352,12 +352,12 @@ static void tcpsession_client_close(tcplistener_t *listener) {
 	sdRef = &listener->sdList;
 	vector_sz = vector_count(sdRef);
 
-	stats_debug_log("tcpserver: number of sockets to shutdown %d", vector_sz);
+	stats_log("tcpserver: shutting down %d sockets", vector_sz);
 	for (v_index = 0; v_index < vector_sz; v_index++) {
 		session = (tcpsession_t *)vector_fetch(sdRef, v_index);
 		if (session != NULL) {
 			stats_log("tcpsession: close sd %d", session->sd);
-			if (shutdown(session->sd, SHUT_WR) < 0) {
+			if (shutdown(session->sd, SHUT_RDWR) < 0) {
 				stats_error_log("tcpserver: shutdown socket close error %s", strerror(errno));
 			}
 		}
@@ -372,27 +372,25 @@ static void tcpsession_kill_watchers(tcplistener_t *listener) {
 	sdRef = &listener->sdList;
 	vector_sz = vector_count(sdRef);
 
-	stats_debug_log("tcpserver: number of tcp sessions to kill watchers on %d", vector_sz);
+	stats_log("tcpserver: killing session watchers on %d sockets", vector_sz);
 	for (v_index = 0; v_index < vector_sz; v_index++) {
 		session = (tcpsession_t *)vector_fetch(sdRef, v_index);
 
 		if (session != NULL) {
 			ev_io_stop(session->loop, session->watcher);
 			free(session->watcher);
-			vector_delete_at(sdRef, v_index);
-			free(session);
 		}
 	}
+	// free up the session descriptor vector
 	vector_free_all(sdRef);
-}
 
-static void tcplistener_free(tcplistener_t *listener) {
-	stats_log("tcplistener: close tcp socket %d", listener->sd);
+	stats_log("tcplistener: close listening tcp socket %d", listener->sd);
 	if (close(listener->sd) < 0) {
-		stats_error_log("tcplistener: attempting close tcp socket %s", strerror(errno));
+		stats_error_log("tcplistener: attempting close tcp socket failed, %s", strerror(errno));
 	}
 	free(listener);
 }
+
 
 // helper that actually shutsdown the listener
 static void tcplistener_destroy(tcpserver_t *server, tcplistener_t *listener) {
@@ -416,7 +414,6 @@ void tcpserver_destroy_session_sockets(tcpserver_t *server) {
 	for (int i = 0; i < server->listeners_len; i++) {
 		tcpsession_client_close(server->listeners[i]);
 		tcpsession_kill_watchers(server->listeners[i]);
-		tcplistener_free(server->listeners[i]);
 	}
 	server->listeners_len = -1;	
 }
