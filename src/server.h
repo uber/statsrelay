@@ -32,4 +32,8 @@ void destroy_server_collection(struct server_collection *server_collection);
 
 void stop_accepting_connections(struct server_collection *server_collection);
 
+void tcpserver_destroy_session_sockets(tcpserver_t *);
+
+void shutdown_client_sockets(struct server_collection *server_collection);
+
 #endif  // STATSRELAY_SERVER_H

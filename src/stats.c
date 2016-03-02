@@ -515,29 +515,6 @@ size_t stats_num_backends(stats_server_t *server) {
 	return server->num_backends;
 }
 
-void stats_server_reload(stats_server_t *server) {
-	for (int i = 0; i < server->rings->size; i++) {
-		stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
-		group_destroy(group);
-	}
-	statsrelay_list_destroy(server->rings);
-
-	for (int i = 0; i < server->monitor_ring->size; i++) {
-		stats_backend_group_t* group = (stats_backend_group_t*)server->monitor_ring->data[i];
-		group_destroy(group);
-	}
-	statsrelay_list_destroy(server->monitor_ring);
-
-	// Note: At this state, its important to not destroy any backends - at best we need
-	// to implement a GC flag on each backend so it can be sweeped after the
-	// config is actually reloaded
-
-
-	server->last_reload = time(NULL);
-
-	// FIXME - this is still totally broken despite the docs saying its ok ;)
-}
-
 void *stats_connection(int sd, void *ctx) {
 	stats_session_t *session;
 

@@ -2,7 +2,6 @@
 #include "log.h"
 
 #include <stdio.h>
-
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -13,45 +12,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
-
 #include <ev.h>
-
-#define MAX_TCP_HANDLERS 32
-#define LISTEN_BACKLOG 128
-
-typedef struct tcplistener_t tcplistener_t;
-typedef struct tcpsession_t tcpsession_t;
-
-// tcpserver_t represents an event loop bound to multiple sockets
-struct tcpserver_t {
-	struct ev_loop *loop;
-	tcplistener_t *listeners[MAX_TCP_HANDLERS];
-	int listener_fds[MAX_TCP_HANDLERS];
-	int listeners_len;
-	void *data;
-};
-
-// tcplistener_t represents a socket listening on a port
-struct tcplistener_t {
-	struct ev_loop *loop;
-	int sd;
-	struct ev_io *watcher;
-	void *data;
-	void *(*cb_conn)(int, void *);
-	int (*cb_recv)(int, void *, void *);
-};
-
-// tcpsession_t represents a client connection to the server
-struct tcpsession_t {
-	struct ev_loop *loop;
-	int sd;
-	struct ev_io *watcher;
-	void *data;
-	int (*cb_recv)(int, void *, void *);
-	struct sockaddr_storage client_addr;
-	void *ctx;
-	void (*ctx_dealloc)(void *);
-};
 
 static tcpsession_t *tcpsession_create(tcplistener_t *listener) {
 	tcpsession_t *session;
@@ -69,6 +30,9 @@ static tcpsession_t *tcpsession_create(tcplistener_t *listener) {
 
 	session->loop = listener->loop;
 	session->data = listener->data;
+	// Save a ptr to the Socket descriptor vector
+	// in the session object, to allow cleanup.
+	session->sdPtr = &listener->sdList;
 	session->sd = -1;
 	session->cb_recv = listener->cb_recv;
 	session->watcher->data = (void *)session;
@@ -77,10 +41,37 @@ static tcpsession_t *tcpsession_create(tcplistener_t *listener) {
 	return session;
 }
 
+// searches and removes all the items with session
+// structure socket descriptor in the vector we maintain
+// also resizes the vector
+static void vector_remove(vector_t *v, int sd) {
+	tcpsession_t *session;
+	int vector_sz = vector_count(v);
+	for (int v_index = 0; v_index < vector_sz; v_index++) {
+		session = (tcpsession_t *)v->items[v_index];
+		if (session != NULL && session->sd == sd) {
+			stats_debug_log("tcpserver: removing %d, from SD vector", session->sd);
+			vector_delete_at(v, v_index);
+		}
+	}
+	return;
+}
+
+// Called everytime session close is initiated
+// also removes the session socket descriptor from
+// the vector we maintain
 static void tcpsession_destroy(tcpsession_t *session) {
 	if (session->sd > 0) {
 		close(session->sd);
 	}
+	/**
+	 * Loop over the cached descriptors
+	 * and remove it from the list
+	 */
+	if (session->sdPtr != NULL) {
+		vector_remove(session->sdPtr, session->sd);
+	}
+
 	ev_io_stop(session->loop, session->watcher);
 	free(session->watcher);
 	free(session);
@@ -112,7 +103,7 @@ static void tcpsession_recv_callback(struct ev_loop *loop,
 	}
 
 	if (session->cb_recv(session->sd, session->data, session->ctx) != 0) {
-		//stats_error_log("tcpsession: recv callback returned non-zero, closing connection");
+		stats_error_log("tcpsession: recv callback returned non-zero, closing connection");
 		tcpsession_destroy(session);
 		return;
 	}
@@ -161,10 +152,13 @@ static void tcplistener_accept_callback(struct ev_loop *loop,
 
 	session->ctx = listener->cb_conn(session->sd, session->data);
 
+	// Save the new connection socket descriptor
+	// into the vector, for future cleanup!
+	vector_insert(&listener->sdList, (void *)session);
+
 	ev_io_init(session->watcher, tcpsession_recv_callback, session->sd, EV_READ);
 	ev_io_start(loop, session->watcher);
 }
-
 
 tcpserver_t *tcpserver_create(struct ev_loop *loop, void *data) {
 	tcpserver_t *server;
@@ -174,7 +168,6 @@ tcpserver_t *tcpserver_create(struct ev_loop *loop, void *data) {
 	server->data = data;
 	return server;
 }
-
 
 static tcplistener_t *tcplistener_create(tcpserver_t *server,
 		struct addrinfo *addr,
@@ -193,6 +186,13 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 	listener->loop = server->loop;
 	listener->data = server->data;
 	listener->cb_conn = cb_conn;
+	/**
+	 * Do not pass it to the child
+	 * let the child get it own copy
+	 * since we are going to close
+	 * all the session sockets on USR2
+	 */
+	vector_init(&listener->sdList, SESSION_SDS_VECTOR_INITIAL_SIZE);
 	listener->cb_recv = cb_recv;
 
 	/**
@@ -282,15 +282,6 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 	return listener;
 }
 
-
-static void tcplistener_destroy(tcpserver_t *server, tcplistener_t *listener) {
-	if (listener->watcher != NULL) {
-		ev_io_stop(server->loop, listener->watcher);
-		free(listener->watcher);
-	}
-	free(listener);
-}
-
 int tcpserver_bind(tcpserver_t *server,
 		const char *address_and_port,
 		bool rebind,
@@ -350,13 +341,87 @@ int tcpserver_bind(tcpserver_t *server,
 	return 0;
 }
 
-void tcpserver_destroy(tcpserver_t *server) {
-	free(server);
+// This step is used to send a shutdown signal to the connected
+// clients and allowing time to drain read buffer of whatever
+// was already send over the tcp socket
+static void tcpsession_client_close(tcplistener_t *listener) {
+	tcpsession_t *session;
+	vector_t *sdRef;
+	unsigned int vector_sz, v_index;
+
+	sdRef = &listener->sdList;
+	vector_sz = vector_count(sdRef);
+
+	stats_debug_log("tcpserver: number of sockets to shutdown %d", vector_sz);
+	for (v_index = 0; v_index < vector_sz; v_index++) {
+		session = (tcpsession_t *)vector_fetch(sdRef, v_index);
+		if (session != NULL) {
+			stats_log("Send close to %d", session->sd);
+			if (shutdown(session->sd, SHUT_WR) < 0) {
+				stats_error_log("tcpserver: shutdown socket close error %s", strerror(errno));
+			}
+		}
+	}
 }
 
+static void tcpsession_kill_watchers(tcplistener_t *listener) {
+	tcpsession_t *session;
+	vector_t *sdRef;
+	unsigned int vector_sz, v_index;
+
+	sdRef = &listener->sdList;
+	vector_sz = vector_count(sdRef);
+
+	stats_debug_log("tcpserver: number of tcp sessions to kill watchers on %d", vector_sz);
+	for (v_index = 0; v_index < vector_sz; v_index++) {
+		session = (tcpsession_t *)vector_fetch(sdRef, v_index);
+
+		if (session != NULL) {
+			ev_io_stop(session->loop, session->watcher);
+			free(session->watcher);
+			vector_delete_at(sdRef, v_index);
+			free(session);
+		}
+	}
+	vector_free_all(sdRef);
+}
+
+static void tcplistener_free(tcplistener_t *listener) {
+	stats_log("tcplistener: close tcp socket %d", listener->sd);
+	if (close(listener->sd) < 0) {
+		stats_error_log("tcplistener: attempting close tcp socket %s", strerror(errno));
+	}
+	free(listener);
+}
+
+// helper that actually shutsdown the listener
+static void tcplistener_destroy(tcpserver_t *server, tcplistener_t *listener) {
+	if (listener->watcher != NULL) {
+		ev_io_stop(server->loop, listener->watcher);
+		free(listener->watcher);
+	}
+}
+
+// kills the accept watcher, to prevent further incoming connection
+// on the tcp socket. Then we allow the read buffer to drain.
 void tcpserver_stop_accepting_connections(tcpserver_t *server) {
 	for (int i = 0; i < server->listeners_len; i++) {
-		stats_debug_log("No longer accepting connections %d", getpid());
 		tcplistener_destroy(server, server->listeners[i]);
 	}
+}
+
+// this should send shutdown(sd, 1) to the connected clients
+// and free up the listeners
+void tcpserver_destroy_session_sockets(tcpserver_t *server) {
+	for (int i = 0; i < server->listeners_len; i++) {
+		tcpsession_client_close(server->listeners[i]);
+		tcpsession_kill_watchers(server->listeners[i]);
+		tcplistener_free(server->listeners[i]);
+	}
+	server->listeners_len = -1;	
+}
+
+// reliquishes the server object
+void tcpserver_destroy(tcpserver_t *server) {
+	free(server);
 }

@@ -5,11 +5,11 @@ int read_pid(char *pidfile) {
 	FILE *f;
 	int pid;
 
-	if (!(f=fopen(pidfile,"r"))) {
+	if (!(f = fopen(pidfile,"r"))) {
 		return 0;
 	}
-	
-	fscanf(f,"%d", &pid);
+
+	fscanf(f, "%d", &pid);
 	fclose(f);
 	return pid;
 }
@@ -20,10 +20,9 @@ int remove_pid(char *pidfile) {
 
 int write_pid(char *pidfile, pid_t old_pid) {
 	FILE *f;
-	int fd;
-	int pid;
+	int fd, pid;
 
-	if ( ((fd = open(pidfile, O_RDWR|O_CREAT, 0644)) == -1)
+	if (((fd = open(pidfile, O_RDWR|O_CREAT, 0644)) == -1)
 			|| ((f = fdopen(fd, "r+")) == NULL) ) {
 		stats_error_log("pidfile: can't open or create %s.\n", pidfile);
 		return 0;
@@ -38,9 +37,9 @@ int write_pid(char *pidfile, pid_t old_pid) {
 	}
 #endif
 
-	pid = old_pid != NULL ? old_pid : getpid();
+	pid = old_pid;
 
-	if (!fprintf(f,"%d\n", pid)) {
+	if (!fprintf(f, "%d\n", pid)) {
 		stats_error_log("pidfile: write failed %s", strerror(errno));
 		close(fd);
 		return 0;

@@ -62,12 +62,14 @@ static void graceful_shutdown(struct ev_loop *loop, ev_signal *w, int revents) {
 	ev_break(loop, EVBREAK_ALL);
 }
 
-static void reload_config(struct ev_loop *loop, ev_signal *w, int revents) {
-	stats_log("Received SIGHUP, reloading.");
-	if (server != NULL) {
-		stats_server_reload(server);
-	}
+static void quick_shutdown(struct ev_loop *loop, ev_signal *w, int revents) {
+	stats_log("main: received signal, immediate shut down.");
+	stop_accepting_connections(&servers);
+	shutdown_client_sockets(&servers);
+	destroy_server_collection(&servers);
+	ev_break(loop, EVBREAK_ALL);
 }
+
 
 static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 	pid_t pid, old_pid;
@@ -88,6 +90,7 @@ static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 		stats_error_log("main: failed to fork() on SIGUSR2!");
 		stats_log("main: shutting down master.");
 		stop_accepting_connections(&servers);
+		shutdown_client_sockets(&servers);
 		destroy_server_collection(&servers);
 		ev_break(loop, EVBREAK_ALL);
 	}
@@ -105,6 +108,12 @@ static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 		 * prevent parent from accepting new connections
 		 */
 		stop_accepting_connections(&servers);
+
+		/**
+		 * Inform the connected tcp clients
+		 * and wait to drain the read buffers
+		 */
+		shutdown_client_sockets(&servers);
 
 		/**
 		 *  Sleep for 5 seconds to allow
@@ -182,7 +191,7 @@ static void print_help(const char *argv0) {
 }
 
 int main(int argc, char **argv, char **envp) {
-	ev_signal sigint_watcher, sigterm_watcher, sighup_watcher, sigusr2_watcher, sigwinch_watcher;
+	ev_signal sigint_watcher, sigterm_watcher, sigusr2_watcher;
 	char *lower;
 	char c = 0;
 	bool just_check_config = false;
@@ -276,26 +285,21 @@ int main(int argc, char **argv, char **envp) {
 	}
 
 	struct ev_loop *loop = ev_default_loop(0);
-	ev_signal_init(&sigint_watcher, graceful_shutdown, SIGINT);
+	ev_signal_init(&sigint_watcher, quick_shutdown, SIGINT);
 	ev_signal_start(loop, &sigint_watcher);
 
 	ev_signal_init(&sigterm_watcher, graceful_shutdown, SIGTERM);
 	ev_signal_start(loop, &sigterm_watcher);
 
-	ev_signal_init(&sighup_watcher, reload_config, SIGHUP);
-	ev_signal_start(loop, &sighup_watcher);
-
 	ev_signal_init(&sigusr2_watcher, hot_restart, SIGUSR2);
 	ev_signal_start(loop, &sigusr2_watcher);
-
-	ev_signal_init(&sigwinch_watcher, graceful_shutdown, SIGWINCH);
-	ev_signal_start(loop, &sigwinch_watcher);
 
 	stats_log("main: Starting event loop");
 	ev_run(loop, 0);
 
 success:
 	stop_accepting_connections(&servers);
+	shutdown_client_sockets(&servers);
 	destroy_server_collection(&servers);
 	destroy_json_config(cfg);
 	stats_log_end();
@@ -303,6 +307,7 @@ success:
 
 err:
 	stop_accepting_connections(&servers);
+	shutdown_client_sockets(&servers);
 	destroy_server_collection(&servers);
 	destroy_json_config(cfg);
 	stats_log_end();
