@@ -20,40 +20,40 @@ CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${PROJECT_BINARY_DIR}/con
 include_directories(${PROJECT_BINARY_DIR})
 
 set(SOURCE_FILES
-        src/buffer.c
-        src/buffer.h
-        src/filter.c
-        src/filter.h
-        src/hashlib.c
-        src/hashlib.h
-        src/hashmap.c
-        src/hashmap.h
-        src/hashring.c
-        src/hashring.h
-        src/json_config.c
-        src/json_config.h
-        src/list.c
-        src/list.h
-        src/log.c
-        src/log.h
-        src/pidfile.c
-        src/pidfile.h
-        src/protocol.c
-        src/protocol.h
-        src/server.c
-        src/server.h
-        src/stats.c
-        src/stats.h
-        src/tcpclient.c
-        src/tcpclient.h
-        src/tcpserver.c
-        src/tcpserver.h
-        src/udpserver.c
-        src/udpserver.h
-        src/validate.c
-        src/validate.h
-        src/vector.c
-        src/vector.h
+    src/buffer.c
+    src/buffer.h
+    src/filter.c
+    src/filter.h
+    src/hashlib.c
+    src/hashlib.h
+    src/hashmap.c
+    src/hashmap.h
+    src/hashring.c
+    src/hashring.h
+    src/json_config.c
+    src/json_config.h
+    src/list.c
+    src/list.h
+    src/log.c
+    src/log.h
+    src/pidfile.c
+    src/pidfile.h
+    src/protocol.c
+    src/protocol.h
+    src/server.c
+    src/server.h
+    src/stats.c
+    src/stats.h
+    src/tcpclient.c
+    src/tcpclient.h
+    src/tcpserver.c
+    src/tcpserver.h
+    src/udpserver.c
+    src/udpserver.h
+    src/validate.c
+    src/validate.h
+    src/vector.c
+    src/vector.h
         )
 
 add_executable(statsrelay ${SOURCE_FILES} src/main.c)
@@ -80,3 +80,4 @@ add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND}
 
 
 add_custom_target(integ python ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_endtoend.py DEPENDS statsrelay stathasher WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
