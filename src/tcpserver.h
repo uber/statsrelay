@@ -19,7 +19,7 @@ typedef struct {
 	struct ev_loop *loop;
 	int sd;
 	struct ev_io *watcher;
-	vector_t sdList;
+	list_t clients;
 	void *data;
 	void *(*cb_conn)(int, void *);
 	int (*cb_recv)(int, void *, void *);
@@ -40,7 +40,7 @@ typedef struct {
 	int sd;
 	struct ev_io *watcher;
 	void *data;
-	vector_t *sdPtr;
+	list_t clients;
 	int (*cb_recv)(int, void *, void *);
 	struct sockaddr_storage client_addr;
 	void *ctx;
