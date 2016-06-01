@@ -14,8 +14,6 @@ void vector_dump(list_t list) {
 		session = (tcpsession_t *)list->data[i];
 		if (session != NULL)
 			stats_debug_log("Index: %d, The session sd %d", i, session->sd);
-		else
-			stats_debug_log("Index: %d, NULL", i);
 	}
 }
 

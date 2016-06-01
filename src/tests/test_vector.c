@@ -42,10 +42,13 @@ int main(int argc, char **argv) {
 	sd = 7;
 	vector_pad(backends, sd);
 
-	assert(vector_add(backends, sd));
+	test = (session_t *)malloc(sizeof(session_t));
+	test->sd = sd;
+
+	assert(vector_add(backends, test));
 	assert(vector_size(backends) == (sd + 1));
 
-	assert(vector_check_absence(backends, sd) == false);
+	assert(!vector_check_absence(backends, sd));
 
 	assert(vector_remove(backends, sd));
 
