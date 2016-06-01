@@ -1,5 +1,5 @@
 #include "pidfile.h"
-#include "log.h"
+#include "config.h"
 
 int read_pid(char *pidfile) {
 	FILE *f;

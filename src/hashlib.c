@@ -5,7 +5,7 @@
 static const uint32_t HASHLIB_SEED = 0xaccd3d34;
 
 // From Wikipedia
-static uint32_t murmur3_32(const char *key, uint32_t len, uint32_t seed) {
+uint32_t murmur3_32(const char *key, uint32_t len, uint32_t seed) {
 	static const uint32_t c1 = 0xcc9e2d51;
 	static const uint32_t c2 = 0x1b873593;
 	static const uint32_t r1 = 15;

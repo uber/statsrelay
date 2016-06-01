@@ -42,7 +42,7 @@ static hashring_t create_ring(const char *filename) {
 int main(int argc, char **argv) {
 	stats_log_verbose(1);
 
-	hashring_t ring = create_ring("tests/hashring1.txt");
+	hashring_t ring = create_ring("hashring1.txt");
 	assert(ring != NULL);
 	uint32_t i;
 	assert(strcmp(hashring_choose(ring, "apple", &i), "127.0.0.1:9001") == 0);
@@ -55,7 +55,7 @@ int main(int argc, char **argv) {
 	assert(i == 1);
 	hashring_dealloc(ring);
 
-	ring = create_ring("tests/hashring2.txt");
+	ring = create_ring("hashring2.txt");
 	assert(strcmp(hashring_choose(ring, "apple", &i), "127.0.0.1:9001") == 0);
 	assert(i == 2);
 	assert(strcmp(hashring_choose(ring, "banana", &i), "127.0.0.1:9003") == 0);

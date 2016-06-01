@@ -4,10 +4,13 @@
 *.swp
 *.trs
 .deps
+.idea
 .dirstamp
 Makefile
 Makefile.in
 __pycache__
+CMakeFiles/
+CMakeCache.txt
 aclocal.m4
 autom4te.cache/
 compile
@@ -28,3 +31,8 @@ test/devnull
 test_hashlib
 test_hashring
 test_stats
+statsrelay
+stathasher
+stresstest
+*.cmake
+

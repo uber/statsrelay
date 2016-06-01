@@ -1,25 +1,15 @@
 #include "config.h"
 #include "protocol.h"
 #include "tcpserver.h"
-#include "udpserver.h"
 #include "server.h"
-#include "stats.h"
-#include "log.h"
-#include "validate.h"
 #include "pidfile.h"
-#include "json_config.h"
 
-#include <assert.h>
 #include <ctype.h>
-#include <ev.h>
-#include <errno.h>
 #include <getopt.h>
-#include <inttypes.h>
+#ifdef HAVE_MALLOC_H
 #include <malloc.h>
-#include <signal.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+#endif
+
 
 struct server_collection servers;
 
@@ -204,6 +194,7 @@ int main(int argc, char **argv, char **envp) {
 
 	stats_set_log_level(STATSRELAY_LOG_INFO);  // set default value
 
+#ifdef HAVE_MALLOC_H
 	/**
 	 *  detects heap corruption, diagnostic
 	 *  will be logged.
@@ -211,9 +202,10 @@ int main(int argc, char **argv, char **envp) {
 	if (mallopt(M_CHECK_ACTION, 1) != 1) {
 		stats_error_log("mallopt() failed: MALLOC_CHECK_ not set");
 	}
+#endif
 
 	while (c != -1) {
-		c = getopt_long(argc, argv, "t:c:l:p:vhS", long_options, NULL);
+		c = getopt_long(argc, argv, "t:c:l:p:VvhS", long_options, NULL);
 		switch (c) {
 			case -1:
 				break;

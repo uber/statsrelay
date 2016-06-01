@@ -19,5 +19,6 @@ uint32_t stats_hash_key(const char *key,
  */
 uint32_t stats_hash_domain(uint32_t hash, uint32_t output_domain);
 
+uint32_t murmur3_32(const char *key, uint32_t len, uint32_t seed);
 
 #endif  // STATSRELAY_HASHLIB_H

@@ -6,6 +6,7 @@ A consistent-hashing relay for statsd metrics
 
 # License
 MIT License
+Copyright (c) 2015-2016 Lyft Inc.
 Copyright (c) 2014 Uber Technologies, Inc.
 
 # Whats different in this version
@@ -22,21 +23,13 @@ This version differs from upstream in several key ways:
 # Build
 
 Dependencies:
-- automake
-- pkg-config
+- cmake
 - libev (>= 4.11)
 - libjansson
 - libpcre
 
 ```
-apt-get install automake pkg-config libev-dev libjansson-dev libpcre3-dev
 
-autoreconf --install
-./configure
-make clean
-make
-make check
-make install
 ```
 
 # Use

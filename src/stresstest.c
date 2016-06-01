@@ -5,8 +5,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <netinet/in.h>
-#include <sys/types.h>
-#include <sys/socket.h>
+
 #include <sys/time.h>
 
 static struct option long_options[] = {
