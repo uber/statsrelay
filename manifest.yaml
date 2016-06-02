@@ -1,0 +1,14 @@
+name: statsrelay
+description: A thing for all the stats relaying
+repository: git@github.com:lyft/statsrelay-private.git
+containers:
+  - name: server
+    command: /usr/bin/statsrelay
+    mounts:
+      - /etc/statsrelay
+      - /var/log/statsrelay
+    network: host
+    signal: single_child
+    exports:
+      - name: statsd
+        port: 8125
