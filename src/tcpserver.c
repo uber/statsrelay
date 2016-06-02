@@ -54,9 +54,7 @@ static void tcpsession_destroy(tcpsession_t *session) {
 	 * and remove it from the list
 	 */
 	if (session->clients != NULL) {
-		vector_dump(session->clients);
 		vector_remove(session->clients, session->sd);
-		vector_dump(session->clients);
 	}
 
 	ev_io_stop(session->loop, session->watcher);
@@ -148,10 +146,8 @@ static void tcplistener_accept_callback(struct ev_loop *loop,
 		// are always assigned as lowest available
 		// int first.
 		listener->clients->data[session->sd] = (void *)session;
-		vector_dump(listener->clients);
 	} else {
 		vector_add(listener->clients, (void *)session);
-		vector_dump(listener->clients);
 	}
 
 	ev_io_init(session->watcher, tcpsession_recv_callback, session->sd, EV_READ);

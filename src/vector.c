@@ -1,5 +1,4 @@
 #include "vector.h"
-#include "tcpserver.h"
 
 #include <inttypes.h>
 #include <stdbool.h>
@@ -7,15 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-
-void vector_dump(list_t list) {
-	tcpsession_t *session;
-	for (int i = 0; i < list->size; i++) {
-		session = (tcpsession_t *)list->data[i];
-		if (session != NULL)
-			stats_debug_log("Index: %d, The session sd %d", i, session->sd);
-	}
-}
 
 bool vector_add(list_t clients, void *obj) {
 	if (obj == NULL) {
