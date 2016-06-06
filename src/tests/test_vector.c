@@ -1,13 +1,9 @@
 #include <assert.h>
 #include <ctype.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <stdio.h>
-#include <string.h>
 
 #include "../vector.h"
-#include "../log.h"
-
 
 typedef struct {
 	int sd;
@@ -24,38 +20,64 @@ static bool vector_check_absence(list_t ring, int sd) {
 	return true;
 }
 
-// Test the vector library. We attempt to test
-// as close as possible to the exact use case.
-int main(int argc, char **argv) {
-	stats_log_verbose(1);
-
+static list_t vector_construct(const char *filename) {
 	list_t backends;
-	session_t* test;
-	size_t i, sd;
 
+	session_t* test;
+	int sd;
 	backends = statsrelay_list_new();
 
 	assert(backends != NULL);
 	assert(backends->allocated_size == 0);
 	assert(backends->size == 0);
 
-	sd = 7;
-	vector_pad(backends, sd);
+	FILE *fp = fopen(filename, "r");
+	assert(fp != NULL);
+	char *line = NULL;
+	size_t len = 0;
+	ssize_t read;
+	while ((read = getline(&line, &len, fp)) != -1) {
+		test = (session_t *)malloc(sizeof(session_t));
 
-	test = (session_t *)malloc(sizeof(session_t));
-	test->sd = sd;
+		sd = atoi(line);
+		test->sd = sd;
+		for (ssize_t i = 0; i < read; i++) {
+			if (isspace(line[i])) {
+				line[i] = '\0';
+				break;
+			}
+		}
+		assert(vector_add(backends, sd, test));
+		assert(vector_size(backends) == (sd + 1));
+		assert(!vector_check_absence(backends, sd));
+		// file descriptors are returned lowest-integer-first
+		assert(vector_size(backends) == (sd + 1));
+	}
+	fclose(fp);
+	free(line);
+	return backends;
+}
 
-	assert(vector_add(backends, test));
-	assert(vector_size(backends) == (sd + 1));
+// Test the vector library. We attempt to test
+// as close as possible to the exact use case.
+int main(int argc, char **argv) {
+	stats_log_verbose(1);
 
-	assert(!vector_check_absence(backends, sd));
+	list_t backends;
 
-	assert(vector_remove(backends, sd));
+	backends = vector_construct("./src/tests/vector.txt");
+	stats_debug_log("Backends have been initialized");
 
-	// file descriptors are returned lowest-integer-first 
-	assert(vector_size(backends) == (sd + 1));
+	int old_size = vector_size(backends);
 
-	assert(vector_check_absence(backends, sd));
+	stats_debug_log("removing 11 from the list");
+	assert(vector_remove(backends, 11));
+
+	// only set as NULL, dont downsize
+	assert(vector_size(backends) == old_size);
+
+	// assert the item is actually gone
+	assert(vector_check_absence(backends, 11));
 
 	// Test free function
 	statsrelay_list_destroy_full(backends);

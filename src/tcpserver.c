@@ -41,6 +41,17 @@ static tcpsession_t *tcpsession_create(tcplistener_t *listener) {
 	return session;
 }
 
+// debugging routine, pass this to vector_debug
+// to see the contents of the list
+static void tcpsession_dump(int index, void *obj) {
+	if (obj != NULL) {
+		tcpsession_t *session = (tcpsession_t *) obj;
+		stats_debug_log("Index:%d, contains tcpsession: %d", index, session->sd);
+	} else {
+		stats_debug_log("Index:%d, contains NULL", index);
+	}
+	return;
+}
 
 // Called everytime session close is initiated
 // also removes the session socket descriptor from
@@ -54,6 +65,7 @@ static void tcpsession_destroy(tcpsession_t *session) {
 	 * and remove it from the list
 	 */
 	if (session->clients != NULL) {
+		stats_log("tcpsession_destroy: removing session socket descriptor %d", session->sd);
 		vector_remove(session->clients, session->sd);
 	}
 
@@ -139,15 +151,13 @@ static void tcplistener_accept_callback(struct ev_loop *loop,
 
 	// Save the new connection socket descriptor
 	// into the vector, for future cleanup!
-	vector_pad(listener->clients, session->sd);
-
 	if (listener->clients->size > session->sd && !vector_fetch(listener->clients, session->sd)) {
 		// reuse the slot, as file descriptor
 		// are always assigned as lowest available
 		// int first.
 		listener->clients->data[session->sd] = (void *)session;
 	} else {
-		vector_add(listener->clients, (void *)session);
+		vector_add(listener->clients, session->sd, (void *)session);
 	}
 
 	ev_io_init(session->watcher, tcpsession_recv_callback, session->sd, EV_READ);
@@ -344,7 +354,6 @@ static void tcpsession_client_close(tcplistener_t *listener) {
 
 	vector_sz = vector_size(listener->clients);
 
-	stats_log("tcpserver: shutting down %d sockets", vector_sz);
 	for (i = 0; i < vector_sz; i++) {
 		session = (tcpsession_t *)vector_fetch(listener->clients, i);
 		if (session != NULL) {

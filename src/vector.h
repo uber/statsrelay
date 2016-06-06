@@ -9,7 +9,7 @@
 
 // Adds an element to the vector
 // (mallocs as per need, hence a vector)
-bool vector_add(list_t, void *);
+bool vector_add(list_t, int, void *);
 
 // Fetches an item at given index
 // return NULL if the index is out of bounds
@@ -22,6 +22,9 @@ bool vector_remove(list_t, int);
 size_t vector_size(list_t);
 
 // pad items to the left
-bool vector_pad(list_t, int );
+bool vector_pad(list_t, int, int );
+
+// dumps the contents of the list
+void vector_dump(list_t, void (*cb)(int, void *));
 
 #endif

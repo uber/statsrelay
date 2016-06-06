@@ -7,13 +7,16 @@
 #include <string.h>
 
 
-bool vector_add(list_t clients, void *obj) {
+bool vector_add(list_t clients, int at_index, void *obj) {
 	if (obj == NULL) {
 		stats_error_log("malformed object passed in, NULL pointer");
 		goto add_err;
 	}
 
-	// grow the list
+	if (at_index > clients->size) {
+		vector_pad(clients, clients->size, at_index);
+	}
+	// allocate memory to save the actual object
 	if (statsrelay_list_expand(clients) == NULL) {
 		stats_error_log("vector: failed to expand list");
 		goto add_err;
@@ -48,21 +51,30 @@ size_t vector_size(list_t list) {
 	return list->size;
 }
 
-bool vector_pad(list_t list, int pad_left) {
+bool vector_pad(list_t list, int start_index, int pad_left) {
+	int i = start_index;
 	if (!list->allocated_size) {
-		stats_debug_log("vector: padding to the left %d", pad_left);
 		// add some padding to facilitate
 		// constant time lookups
-		for (int p = 0; p < pad_left; p++) {
-			if (statsrelay_list_expand(list) == NULL) {
-				stats_error_log("tcplistener_accept_callback: failed to expand list");
-				goto add_err;
-			}
-			list->data[list->size - 1] = NULL;
-		}
-		return true;
+		i = 0;
 	}
+	for (int p = start_index; p < pad_left; p++) {
+		if (statsrelay_list_expand(list) == NULL) {
+			stats_error_log("tcplistener_accept_callback: failed to expand list");
+			goto add_err;
+		}
+		list->data[list->size - 1] = NULL;
+	}
+	return true;
 
 add_err:
 	return false;
+}
+
+void vector_dump(list_t list, void (*cb)(int, void *)) {
+	void *obj;
+	for (int i = 0; i < list->size; i++) {
+		obj = list->data[i];
+		cb(i, obj);
+	}
 }
