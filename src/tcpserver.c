@@ -32,7 +32,7 @@ static tcpsession_t *tcpsession_create(tcplistener_t *listener) {
 	session->data = listener->data;
 	// Save a ptr to the Socket descriptor vector
 	// in the session object, to allow cleanup.
-	session->sdPtr = &listener->sdList;
+	session->clients = listener->clients;
 	session->sd = -1;
 	session->cb_recv = listener->cb_recv;
 	session->watcher->data = (void *)session;
@@ -41,18 +41,14 @@ static tcpsession_t *tcpsession_create(tcplistener_t *listener) {
 	return session;
 }
 
-// searches and removes all the items with session
-// structure socket descriptor in the vector we maintain
-// also resizes the vector
-static void vector_remove(vector_t *v, int sd) {
-	tcpsession_t *session;
-	int vector_sz = vector_count(v);
-	for (int v_index = 0; v_index < vector_sz; v_index++) {
-		session = (tcpsession_t *)v->items[v_index];
-		if (session != NULL && session->sd == sd) {
-			stats_debug_log("tcpserver: removing %d, from SD vector", session->sd);
-			vector_delete_at(v, v_index);
-		}
+// debugging routine, pass this to vector_debug
+// to see the contents of the list
+static void tcpsession_dump(int index, void *obj) {
+	if (obj != NULL) {
+		tcpsession_t *session = (tcpsession_t *) obj;
+		stats_debug_log("Index:%d, contains tcpsession: %d", index, session->sd);
+	} else {
+		stats_debug_log("Index:%d, contains NULL", index);
 	}
 	return;
 }
@@ -68,8 +64,9 @@ static void tcpsession_destroy(tcpsession_t *session) {
 	 * Loop over the cached descriptors
 	 * and remove it from the list
 	 */
-	if (session->sdPtr != NULL) {
-		vector_remove(session->sdPtr, session->sd);
+	if (session->clients != NULL) {
+		stats_log("tcpsession_destroy: removing session socket descriptor %d", session->sd);
+		vector_remove(session->clients, session->sd);
 	}
 
 	ev_io_stop(session->loop, session->watcher);
@@ -114,7 +111,7 @@ static void tcpsession_recv_callback(struct ev_loop *loop,
 static void tcplistener_accept_callback(struct ev_loop *loop,
 		struct ev_io *watcher,
 		int revents) {
-	stats_debug_log("in tcplistener_accept_callback pid:%d, parentpid:%d", getpid(), getppid());
+	stats_debug_log("tcplistener_accept_callback pid:%d, parentpid:%d", getpid(), getppid());
 	socklen_t sin_size;
 	tcplistener_t *listener;
 	tcpsession_t *session;
@@ -154,7 +151,14 @@ static void tcplistener_accept_callback(struct ev_loop *loop,
 
 	// Save the new connection socket descriptor
 	// into the vector, for future cleanup!
-	vector_insert(&listener->sdList, (void *)session);
+	if (listener->clients->size > session->sd && !vector_fetch(listener->clients, session->sd)) {
+		// reuse the slot, as file descriptor
+		// are always assigned as lowest available
+		// int first.
+		listener->clients->data[session->sd] = (void *)session;
+	} else {
+		vector_add(listener->clients, session->sd, (void *)session);
+	}
 
 	ev_io_init(session->watcher, tcpsession_recv_callback, session->sd, EV_READ);
 	ev_io_start(loop, session->watcher);
@@ -192,7 +196,7 @@ static tcplistener_t *tcplistener_create(tcpserver_t *server,
 	 * since we are going to close
 	 * all the session sockets on USR2
 	 */
-	vector_init(&listener->sdList, SESSION_SDS_VECTOR_INITIAL_SIZE);
+	listener->clients = statsrelay_list_new();
 	listener->cb_recv = cb_recv;
 
 	/**
@@ -346,35 +350,34 @@ int tcpserver_bind(tcpserver_t *server,
 // was already send over the tcp socket
 static void tcpsession_client_close(tcplistener_t *listener) {
 	tcpsession_t *session;
-	vector_t *sdRef;
-	unsigned int vector_sz, v_index;
+	int vector_sz, i, count = 0;
 
-	sdRef = &listener->sdList;
-	vector_sz = vector_count(sdRef);
+	vector_sz = vector_size(listener->clients);
 
-	stats_log("tcpserver: shutting down %d sockets", vector_sz);
-	for (v_index = 0; v_index < vector_sz; v_index++) {
-		session = (tcpsession_t *)vector_fetch(sdRef, v_index);
+	for (i = 0; i < vector_sz; i++) {
+		session = (tcpsession_t *)vector_fetch(listener->clients, i);
 		if (session != NULL) {
-			stats_log("tcpsession: close sd %d", session->sd);
+			stats_log("tcpsession: shutting down sd %d", session->sd);
 			if (shutdown(session->sd, SHUT_RDWR) < 0) {
 				stats_error_log("tcpserver: shutdown socket close error %s", strerror(errno));
+				continue;
 			}
+			count++;
 		}
 	}
+	stats_log("tcpserver: successfully shutdown %d sockets", count);
+	return;
 }
 
 static void tcpsession_kill_watchers(tcplistener_t *listener) {
 	tcpsession_t *session;
-	vector_t *sdRef;
 	unsigned int vector_sz, v_index;
 
-	sdRef = &listener->sdList;
-	vector_sz = vector_count(sdRef);
+	vector_sz = vector_size(listener->clients);
 
 	stats_log("tcpserver: killing session watchers on %d sockets", vector_sz);
 	for (v_index = 0; v_index < vector_sz; v_index++) {
-		session = (tcpsession_t *)vector_fetch(sdRef, v_index);
+		session = (tcpsession_t *)vector_fetch(listener->clients, v_index);
 
 		if (session != NULL) {
 			ev_io_stop(session->loop, session->watcher);
@@ -382,7 +385,7 @@ static void tcpsession_kill_watchers(tcplistener_t *listener) {
 		}
 	}
 	// free up the session descriptor vector
-	vector_free_all(sdRef);
+	statsrelay_list_destroy_full(listener->clients);
 	free(listener);
 }
 

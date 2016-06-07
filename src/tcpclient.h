@@ -92,6 +92,8 @@ void tcpclient_set_sent_callback(tcpclient_t *client,
 
 int tcpclient_connect(tcpclient_t *client);
 
+void tcpclient_disconnect(tcpclient_t *client);
+
 int tcpclient_sendall(tcpclient_t *client,
 		const char *buf,
 		size_t len);

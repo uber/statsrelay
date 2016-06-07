@@ -77,10 +77,6 @@ begins to drain.
 
 All log messages are sent to syslog with the INFO priority.
 
-Upon SIGHUP, the config file will be reloaded and all backend
-connections closed. Note that any stats in the send queue at the time
-of SIGHUP will be dropped. ** THIS IS CURRENTLY BROKEN **
-
 If SIGINT or SIGTERM are caught, all connections are killed, send
 queues are dropped, and memory freed. statsrelay exits with return
 code 0 if all went well.

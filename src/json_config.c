@@ -16,6 +16,8 @@ static void init_proto_config(struct proto_config *protoc) {
 	protoc->enable_validation = true;
 	protoc->enable_tcp_cork = true;
 	protoc->max_send_queue = 134217728;
+	protoc->auto_reconnect = false;
+	protoc->reconnect_threshold = 1.0;
 	protoc->ring = statsrelay_list_new();
 	protoc->dupl = statsrelay_list_new();
 	protoc->sstats = statsrelay_list_new();
@@ -28,6 +30,13 @@ static bool get_bool_orelse(json_t* json, const char* key, bool def) {
 	if (json_is_null(v))
 		return def;
 	return json_is_true(v) ? true : false;
+}
+
+static double get_real_orelse(json_t* json, const char *key, double def) {
+	json_t* v = json_object_get(json, key);
+	if (v == NULL || json_is_null(v))
+		return def;
+	return json_real_value(v);
 }
 
 static char* get_string(const json_t* json, const char* key) {
@@ -99,6 +108,7 @@ static int parse_proto(json_t* json, struct proto_config* config) {
 	config->initialized = true;
 	config->enable_validation = get_bool_orelse(json, "validate", true);
 	config->enable_tcp_cork = get_bool_orelse(json, "tcp_cork", true);
+	config->auto_reconnect = get_bool_orelse(json, "auto_reconnect", false);
 
 	char* jbind = get_string(json, "bind");
 	if (jbind != NULL) {
@@ -108,6 +118,7 @@ static int parse_proto(json_t* json, struct proto_config* config) {
 	}
 
 	config->max_send_queue = get_int_orelse(json, "max_send_queue", 134217728);
+	config->reconnect_threshold = get_real_orelse(json, "reconnect_threshold", 1.0);
 
 	const json_t* jshards = json_object_get(json, "shard_map");
 	parse_server_list(jshards, config->ring);
