@@ -202,6 +202,7 @@ make_err:
 	free(port);
 	free(protocol);
 	free(full_key);
+	free(full_key_metrics);
 	return NULL;
 }
 

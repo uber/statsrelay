@@ -83,6 +83,11 @@ static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
 		shutdown_client_sockets(&servers);
 		destroy_server_collection(&servers);
 		ev_break(loop, EVBREAK_ALL);
+
+		if (pid_file != NULL) {
+			stats_log("removing pidfile: %s", pid_file);
+			remove_pid(pid_file);
+		}
 	}
 
 	if (pid) {

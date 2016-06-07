@@ -1,77 +1,80 @@
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "vector.h"
 
-vector_t* vector_init(vector_t *v, unsigned int init_size) {
-	v->capacity = init_size;
-	v->size_factor = init_size;
-	v->count = 0;
-	v->items = malloc(sizeof(void *) * v->capacity);
-	return v;
-}
+#include <inttypes.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-int vector_count(vector_t *v) {
-	return v->count;
-}
 
-int vector_capacity(vector_t *v) {
-	return v->capacity;
-}
-
-static void vector_resize(vector_t *v, unsigned int capacity) {
-	stats_debug_log("vector_resize: %d to %d", v->capacity, capacity);
-
-	void **items = realloc(v->items, sizeof(void *) * capacity);
-	if (items) {
-		v->items = items;
-		v->capacity = capacity;
-	} else {
-        perror("realloc() failure");
-	}
-}
-
-void vector_insert(vector_t *v, void *item) {
-	if (v->capacity == v->count) {
-		vector_resize(v, v->capacity * 2);
+bool vector_add(list_t clients, int at_index, void *obj) {
+	if (obj == NULL) {
+		stats_error_log("malformed object passed in, NULL pointer");
+		goto add_err;
 	}
 
-	v->items[v->count++] = item;
+	if (at_index > clients->size) {
+		vector_pad(clients, clients->size, at_index);
+	}
+	// allocate memory to save the actual object
+	if (statsrelay_list_expand(clients) == NULL) {
+		stats_error_log("vector: failed to expand list");
+		goto add_err;
+	}
+
+	clients->data[clients->size - 1] = obj;
+	return true;
+
+add_err:
+	return false;
 }
 
-void *vector_fetch(vector_t *v, unsigned int index) {
-	if (index >= 0 && index < v->count) {
-		return v->items[index];
+void *vector_fetch(list_t clients, int index) {
+	if (index >= 0 && index <= clients->size) {
+		return clients->data[index];
 	}
 	return NULL;
 }
 
-void vector_delete_at(vector_t *v, unsigned int index) {
-	if (index < 0 || index >= v->count)
-		return;
+bool vector_remove(list_t clients, int index) {
+	if (index < 0 || index > clients->size)
+		return false;
 
-	v->items[index] = NULL;
+	stats_debug_log("vector_remove: removing element %d", index);
+	clients->data[index] = NULL;
 
-	for (int i = index; i < v->count - 1; i++) {
-		v->items[i] = v->items[i + 1];
-		v->items[i + 1] = NULL;
-	}
-
-	v->count--;
-	stats_debug_log("vector_delete: total items %d", v->count);
-
-	if (v->count > 0 && v->count == v->capacity / v->size_factor) {
-		vector_resize(v, v->capacity / 2);
-	}
+	stats_debug_log("vector_remove: total items %d", clients->size);
+	return true;
 }
 
-void vector_free(vector_t *v) {
-	free(v->items);
-	free(v);
+size_t vector_size(list_t list) {
+	return list->size;
 }
 
-void vector_free_all(vector_t *v) {
-	for (unsigned int i = 0; i < v->count; i++) {
-		free(v->items[i]);
+bool vector_pad(list_t list, int start_index, int pad_left) {
+	int i = start_index;
+	if (!list->allocated_size) {
+		// add some padding to facilitate
+		// constant time lookups
+		i = 0;
+	}
+	for (int p = start_index; p < pad_left; p++) {
+		if (statsrelay_list_expand(list) == NULL) {
+			stats_error_log("tcplistener_accept_callback: failed to expand list");
+			goto add_err;
+		}
+		list->data[list->size - 1] = NULL;
+	}
+	return true;
+
+add_err:
+	return false;
+}
+
+void vector_dump(list_t list, void (*cb)(int, void *)) {
+	void *obj;
+	for (int i = 0; i < list->size; i++) {
+		obj = list->data[i];
+		cb(i, obj);
 	}
 }

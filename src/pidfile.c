@@ -22,9 +22,14 @@ int write_pid(char *pidfile, pid_t old_pid) {
 	FILE *f;
 	int fd, pid;
 
-	if (((fd = open(pidfile, O_RDWR|O_CREAT, 0644)) == -1)
-			|| ((f = fdopen(fd, "r+")) == NULL) ) {
+	if ((fd = open(pidfile, O_RDWR|O_CREAT, 0644)) == -1) {
 		stats_error_log("pidfile: can't open or create %s.\n", pidfile);
+		return 0;
+	}
+
+	if ((f = fdopen(fd, "r+")) == NULL) {
+		stats_error_log("pidfile: fdopen failed\n");
+		close(fd);
 		return 0;
 	}
 
@@ -42,6 +47,7 @@ int write_pid(char *pidfile, pid_t old_pid) {
 	if (!fprintf(f, "%d\n", pid)) {
 		stats_error_log("pidfile: write failed %s", strerror(errno));
 		close(fd);
+		fclose(f);
 		return 0;
 	}
 	fflush(f);
@@ -50,10 +56,12 @@ int write_pid(char *pidfile, pid_t old_pid) {
 	if (flock(fd, LOCK_UN) == -1) {
 		stats_error_log("pidfile: Can't unlock pidfile %s, %s", pidfile, strerror(errno));
 		close(fd);
+		fclose(f);
 		return 0;
 	}
 #endif
 	close(fd);
+	fclose(f);
 
 	return pid;
 }
