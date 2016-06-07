@@ -89,7 +89,17 @@ static void parse_additional_config(const json_t* additional_config, struct prot
 		struct additional_config* aconfig = calloc(1, sizeof(struct additional_config));
 		aconfig->ring = statsrelay_list_new();
 		aconfig->prefix = get_string(additional_config, "prefix");
+		if (aconfig->prefix) {
+			aconfig->prefix_len = strlen(aconfig->prefix);
+		} else {
+			aconfig->prefix_len = 0;
+		}
 		aconfig->suffix = get_string(additional_config, "suffix");
+		if (aconfig->suffix) {
+			aconfig->suffix_len = strlen(aconfig->suffix);
+		} else {
+			aconfig->suffix_len = 0;
+		}
 		aconfig->ingress_filter = get_string(additional_config, "input_filter");
 
 		stats_log("adding %s cluster with prefix '%s' and suffix '%s'",

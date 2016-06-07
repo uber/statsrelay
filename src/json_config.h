@@ -13,7 +13,9 @@ struct additional_config {
 	 * No dot (.) is added - this is a raw string.
 	 */
 	char* prefix;
+	size_t prefix_len;
 	char* suffix;
+	size_t suffix_len;
 	/**
 	 * A PCRE compatible regex which will only allow these metrics through this
 	 * duplicate endpoint.

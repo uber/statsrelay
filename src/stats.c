@@ -593,17 +593,15 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
 			linebuf[0] = '\0';
 
 			if (group->prefix) {
-				strncpy(linebuf, group->prefix, MAX_UDP_LENGTH);
-				prefix_line_buffer[MAX_UDP_LENGTH] = '\0';
+				memcpy(linebuf, group->prefix, group->prefix_len);
 				linebuf += group->prefix_len;
 			}
 
-			strncpy(linebuf, key_buffer, MAX_UDP_LENGTH - group->prefix_len);
+			memcpy(linebuf, key_buffer, key_len);
 			linebuf += key_len;
 
 			if (group->suffix) {
-				strncpy(linebuf, group->suffix, MAX_UDP_LENGTH - group->prefix_len - key_len);
-				prefix_line_buffer[MAX_UDP_LENGTH] = '\0';
+				memcpy(linebuf, group->suffix, group->suffix_len);
 				linebuf += group->suffix_len;
 			}
 
