@@ -156,20 +156,20 @@ class StatsdTestCase(TestCase):
             fd, addr = self.statsd_listener.accept()
             sender = self.connect('udp', self.bind_statsd_port)
             sender.sendall('test:1|c\n')
-            self.check_recv(fd, 'test:1|c\n')
+            self.check_recv(fd, 'test:1|c\ntest-1.test.suffix:1|c\n')
             sender.sendall('test:1|c\n')
-            self.check_recv(fd, 'test:1|c\n')
+            self.check_recv(fd, 'test:1|c\ntest-1.test.suffix:1|c\n')
             fd.close()
             time.sleep(6.0)
             sender.sendall('test:xxx\n')
             sender.sendall('test:1|c\n')
             fd, addr = self.statsd_listener.accept()
-            self.check_recv(fd, 'test:1|c\n')
+            self.check_recv(fd, 'test:1|c\ntest-1.test.suffix:1|c\n')
             sender.close()
 
             sender = self.connect('tcp', self.bind_statsd_port)
             sender.sendall('tcptest:1|c\n')
-            self.check_recv(fd, 'tcptest:1|c\n')
+            self.check_recv(fd, 'tcptest:1|c\ntest-1.tcptest.suffix:1|c\n')
 
             sender.sendall('status\n')
             status = sender.recv(65536)
@@ -186,10 +186,10 @@ class StatsdTestCase(TestCase):
                 backends[backend][key] = int(value)
 
             key = '127.0.0.1:%d:tcp' % (self.statsd_listener.getsockname()[1],)
-            self.assertEqual(backends[key]['relayed_lines'], 4)
+            self.assertEqual(backends[key]['relayed_lines'], 8)
             self.assertEqual(backends[key]['dropped_lines'], 0)
             self.assertEqual(backends[key]['bytes_queued'],
-                             backends[key]['bytes_sent'])
+                             backends[key]['bytes_sent'] - 56)
 
     def test_udp_listener(self):
         with self.generate_config('udp') as config_path:
@@ -197,17 +197,17 @@ class StatsdTestCase(TestCase):
             sender = self.connect('udp', self.bind_statsd_port)
             sender.sendall('test:1|c\n')
             fd = self.statsd_listener
-            self.check_recv(fd, 'test:1|c\n')
+            self.check_recv(fd, 'test:1|c\ntest-1.test.suffix:1|c\n')
             sender.sendall('test:1|c\n')
-            self.check_recv(fd, 'test:1|c\n')
+            self.check_recv(fd, 'test:1|c\ntest-1.test.suffix:1|c\n')
             sender.sendall('test:xxx\n')
             sender.sendall('test:1|c\n')
-            self.check_recv(fd, 'test:1|c\n')
+            self.check_recv(fd, 'test:1|c\ntest-1.test.suffix:1|c\n')
             sender.close()
 
             sender = self.connect('tcp', self.bind_statsd_port)
             sender.sendall('tcptest:1|c\n')
-            self.check_recv(fd, 'tcptest:1|c\n')
+            self.check_recv(fd, 'tcptest:1|c\ntest-1.tcptest.suffix:1|c\n')
 
             sender.sendall('status\n')
             status = sender.recv(65536)
@@ -223,10 +223,10 @@ class StatsdTestCase(TestCase):
                 backend = backend.split(':', 1)[1]
                 backends[backend][key] = int(value)
             key = '127.0.0.1:%d:udp' % (self.statsd_listener.getsockname()[1],)
-            self.assertEqual(backends[key]['relayed_lines'], 4)
+            self.assertEqual(backends[key]['relayed_lines'], 8)
             self.assertEqual(backends[key]['dropped_lines'], 0)
             self.assertEqual(backends[key]['bytes_queued'],
-                             backends[key]['bytes_sent'])
+                             backends[key]['bytes_sent'] - 56)
 
     def test_tcp_cork(self):
         if not sys.platform.startswith('linux'):
@@ -235,14 +235,14 @@ class StatsdTestCase(TestCase):
             return
         cork_time = 0.200  # cork time is 200ms on linux
         self.tcp_cork = 'true'
-        msg = 'test:1|c\n'
+        msg = 'test:1|c\ntest-1.test:1|c\n'
         with self.generate_config('tcp') as config_path:
             self.launch_process(config_path)
             fd, addr = self.statsd_listener.accept()
             sender = self.connect('udp', self.bind_statsd_port)
             t0 = time.time()
             sender.sendall(msg)
-            self.check_recv(fd, msg)
+            self.check_recv(fd, 'test:1|c\ntest-1.test.suffix:1|c\ntest-1.test:1|c\ntest-1.test-1.test.suffix:1|c\n')
             elapsed = time.time() - t0
 
             # ensure it took about cork_time ms
@@ -273,7 +273,7 @@ class StatsdTestCase(TestCase):
             sender.sendall('foo.bar:undefined|quux.quuxly.200:1c\n')
             sender.sendall('foo.bar:1|c\n')
             fd = self.statsd_listener
-            self.check_recv(fd, 'foo.bar:1|c\n')
+            self.check_recv(fd, 'foo.bar:1|c\ntest-1.foo.bar.suffix:1|c\n')
             self.assert_(self.proc.returncode is None)
 
 
