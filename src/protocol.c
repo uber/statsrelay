@@ -14,5 +14,6 @@ static size_t simple_parse(const char *instr, size_t inlen, const char needle) {
 }
 
 size_t protocol_parser_statsd(const char *instr, size_t inlen) {
-	return simple_parse(instr, inlen, ':');
+	size_t len = simple_parse(instr, inlen, ':');
+	return len;
 }

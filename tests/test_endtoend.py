@@ -150,6 +150,50 @@ class ConfigTestCase(TestCase):
 
 class StatsdTestCase(TestCase):
 
+    def test_tcp_with_sampler(self):
+        with self.generate_config('tcp', suffix="-sample.json") as config_path:
+            self.launch_process(config_path)
+            fd, addr = self.statsd_listener.accept()
+            sender = self.connect('tcp', self.bind_statsd_port)
+            for i in range(0, 5):
+                sender.sendall('test:1|c\n')
+                expected = 'test-1.test.suffix:1|c\n'
+                self.check_recv(fd, expected, len(expected))
+
+            # We should now be in sampling mode
+            for i in range(0, 200):
+                sender.sendall('test:1|c\n')
+
+            time.sleep(4.0)
+            self.check_recv(fd, 'test-1.test.suffix:1|c@0.005\n')
+
+            # We should now be in sampling mode
+            for i in range(0, 100):
+                sender.sendall('test:1|c\n')
+
+            self.check_recv(fd, 'test-1.test.suffix:1|c@0.01\n')
+
+            sender.sendall('status\n')
+            status = sender.recv(65536)
+            sender.close()
+
+            backends = defaultdict(dict)
+            for line in status.split('\n'):
+                if not line:
+                    break
+                if not line.startswith('backend:'):
+                    continue
+                backend, key, valuetype, value = line.split(' ', 3)
+                backend = backend.split(':', 1)[1]
+                backends[backend][key] = int(value)
+
+            key = '127.0.0.1:%d:tcp' % (self.statsd_listener.getsockname()[1],)
+            self.assertEqual(backends[key]['relayed_lines'], 7)
+            self.assertEqual(backends[key]['dropped_lines'], 0)
+            self.assertEqual(backends[key]['bytes_sent'], 172)
+            self.assertEqual(backends[key]['bytes_queued'], 74)
+
+
     def test_tcp_listener(self):
         with self.generate_config('tcp') as config_path:
             self.launch_process(config_path)

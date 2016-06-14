@@ -15,6 +15,7 @@
 #include "./stats.h"
 #include "./tcpclient.h"
 #include "./validate.h"
+#include "sampling.h"
 
 
 #define MAX_UDP_LENGTH 65536
@@ -45,6 +46,10 @@ typedef struct {
 
 	filter_t* ingress_filter;
 	hashring_t ring;
+
+	sampler_t* sampler;
+
+	ev_timer sampling_timer;
 
 	/* Stats */
 	uint64_t relayed_lines;
