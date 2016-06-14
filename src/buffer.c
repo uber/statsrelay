@@ -69,21 +69,9 @@ char *buffer_tail(buffer_t *b)
 	return b->tail;
 }
 
-/* Assumes we are always making it bigger */
-char *myrealloc(char *p, size_t old, size_t new)
-{
-	char *pnew = malloc(new);
-	if (pnew == NULL) {
-		return NULL;
-	}
-	memcpy(pnew, p, old);
-	free(p);
-	return pnew;
-}
-
 int buffer_newsize(buffer_t *b, size_t newsize)
 {
-	char *pnew = myrealloc(b->ptr, b->size, newsize);
+	char *pnew = realloc(b->ptr, newsize);
 	if (!pnew)
 		return -1;
 	b->head = pnew + (b->head - b->ptr);

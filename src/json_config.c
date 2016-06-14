@@ -83,7 +83,7 @@ static void parse_server_list(const json_t* jshards, list_t ring) {
 	}
 }
 
-static void parse_additional_config(const json_t* additional_config, struct proto_config* config,
+static int parse_additional_config(const json_t* additional_config, struct proto_config* config,
 		list_t target_list, const char *type) {
 	if (additional_config != NULL) {
 		struct additional_config* aconfig = calloc(1, sizeof(struct additional_config));
@@ -102,6 +102,14 @@ static void parse_additional_config(const json_t* additional_config, struct prot
 		}
 		aconfig->ingress_filter = get_string(additional_config, "input_filter");
 
+		aconfig->sampling_threshold = get_int_orelse(additional_config, "sampling_threshold", -1);
+		aconfig->sampling_window = get_int_orelse(additional_config, "sampling_window", -1);
+
+		if (aconfig->sampling_threshold > 0 && !config->enable_validation) {
+			stats_error_log("enabling sampling requires turning on validation of the statsd packet format. sorry.");
+			return -1;
+		}
+
 		stats_log("adding %s cluster with prefix '%s' and suffix '%s'",
 				type, aconfig->prefix, aconfig->suffix);
 
@@ -112,6 +120,7 @@ static void parse_additional_config(const json_t* additional_config, struct prot
 		statsrelay_list_expand(target_list);
 		target_list->data[target_list->size - 1] = aconfig;
 	}
+	return 0;
 }
 
 static int parse_proto(json_t* json, struct proto_config* config) {
@@ -135,7 +144,8 @@ static int parse_proto(json_t* json, struct proto_config* config) {
 
 	const json_t* duplicate = json_object_get(json, "duplicate_to");
 	if (json_is_object(duplicate)) {
-		parse_additional_config(duplicate, config, config->dupl, "duplicate");
+		if (parse_additional_config(duplicate, config, config->dupl, "duplicate"))
+			return -1;
 	} else if (json_is_array(duplicate)) {
 		size_t index;
 		const json_t* duplicate_v;

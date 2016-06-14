@@ -21,6 +21,18 @@ struct additional_config {
 	 * duplicate endpoint.
 	 */
 	char* ingress_filter;
+
+	/**
+	 * sampling_threshold: start sampling messages received at a rate greater than
+	 * this quantity over the sampling_window
+	 */
+	int sampling_threshold;
+
+	/**
+	 * sampling_window: number of seconds to do sampling before flusing internally
+	 */
+	int sampling_window;
+
 	/**
 	 * A list of host:port combos where to forward traffic, consistently hashed.
 	 */

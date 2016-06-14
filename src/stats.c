@@ -14,6 +14,16 @@
 
 #include "stats.h"
 
+// Forward declare
+static void stats_write_to_backend(const char *line,
+				   size_t len,
+				   const char* key_buffer,
+				   hashring_hash_t key_hash,
+				   size_t key_len,
+				   stats_backend_group_t* group);
+
+
+
 // callback after bytes are sent
 static int stats_sent(void *tcpclient,
 		enum tcpclient_event event,
@@ -222,11 +232,16 @@ static void kill_backend(stats_backend_t *backend) {
 	free(backend);
 }
 
-static void group_destroy(stats_backend_group_t* group) {
+static void group_destroy(struct ev_loop *loop, stats_backend_group_t* group) {
 	hashring_dealloc(group->ring);
 	if (group->ingress_filter) {
 		filter_free(group->ingress_filter);
 		group->ingress_filter = NULL;
+	}
+	if (group->sampler) {
+		sampler_destroy(group->sampler);
+		group->sampler = NULL;
+		ev_timer_stop(loop, &group->sampling_timer);
 	}
 	free(group);
 }
@@ -379,6 +394,25 @@ reset_timer:
 	ev_timer_start(server->loop, &server->stats_flusher);	
 }
 
+
+/*
+ * Receive a line from the flusher and send it on
+ */
+static void sampling_flush_cb(void* data, const char* key, const char* line, int len) {
+	hashring_hash_t hash = hashring_hash(key);
+	stats_backend_group_t* group = (stats_backend_group_t*)data;
+	stats_write_to_backend(line, len, key, hash, strlen(key), group);
+}
+
+static void sampling_handler(struct ev_loop *loop, struct ev_timer* timer, int events) {
+	stats_backend_group_t* group = (stats_backend_group_t*)timer->data;
+
+	sampler_flush(group->sampler, sampling_flush_cb, (void*)group);
+
+	ev_timer_set(&group->sampling_timer, sampler_window(group->sampler), 0.0);
+	ev_timer_start(loop, &group->sampling_timer);
+}
+
 stats_server_t *stats_server_create(struct ev_loop *loop,
 		struct proto_config *config,
 		protocol_parser_t parser,
@@ -429,6 +463,16 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 
 			group->ring = ring;
 			group_prefix_create(dupl, group);
+
+			if (dupl->sampling_threshold > 0) {
+				int res = sampler_init(&group->sampler, dupl->sampling_threshold, dupl->sampling_window);
+				if (res) {
+					stats_error_log("sampler loading failed with error %d", res);
+				}
+				ev_timer_init(&group->sampling_timer, sampling_handler, dupl->sampling_window, 0);
+				group->sampling_timer.data = (void*)group;
+				ev_timer_start(server->loop, &group->sampling_timer);
+			}
 
 			if (dupl->ingress_filter) {
 				if (group_filter_create(dupl, group) != 0)
@@ -498,13 +542,13 @@ server_create_err:
 	if (server != NULL) {
 		for (int i = 0; i < server->rings->size; i++) {
 			stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
-			group_destroy(group);
+			group_destroy(loop, group);
 		}
 		statsrelay_list_destroy(server->rings);
 
 		for (int i = 0; i < server->monitor_ring->size; i++) {
 			stats_backend_group_t* group = (stats_backend_group_t*)server->monitor_ring->data[i];
-			group_destroy(group);
+			group_destroy(loop, group);
 		}
 		statsrelay_list_destroy(server->monitor_ring);
 		free(server);
@@ -538,9 +582,71 @@ void *stats_connection(int sd, void *ctx) {
 	return (void *) session;
 }
 
+static void stats_write_to_backend(const char *line,
+				  size_t len,
+				  const char* key_buffer,
+				  hashring_hash_t key_hash,
+				  size_t key_len,
+				  stats_backend_group_t* group) {
+	stats_backend_t *backend = hashring_choose_fromhash(group->ring, key_hash, NULL);
+
+	if (backend == NULL) {
+		/* No backend? No problem. Just skip doing anything */
+		return;
+	}
+
+	/* Allow the line to be modified if needed */
+	char* linebuf = (char*)line;
+	int send_len = len;
+
+	if (group->prefix != NULL || group->suffix != NULL) {
+		static char prefix_line_buffer[MAX_UDP_LENGTH + 1];
+		linebuf = prefix_line_buffer;
+		linebuf[0] = '\0';
+
+		if (group->prefix) {
+			memcpy(linebuf, group->prefix, group->prefix_len);
+			linebuf += group->prefix_len;
+		}
+
+		memcpy(linebuf, key_buffer, key_len);
+		linebuf += key_len;
+
+		if (group->suffix) {
+			memcpy(linebuf, group->suffix, group->suffix_len);
+			linebuf += group->suffix_len;
+		}
+
+		/*                                copy \n\0 from line */
+		memcpy(linebuf, &line[key_len], (len + 2) - key_len);
+
+		/* Reset position */
+		linebuf = prefix_line_buffer;
+		send_len += group->prefix_len + group->suffix_len;
+	}
+
+	if (tcpclient_sendall(&backend->client, linebuf, send_len + 1) != 0) {
+		backend->dropped_lines++;
+		if (backend->failing == 0) {
+			stats_log("stats: Error sending to backend %s", backend->key);
+			backend->failing = 1;
+		}
+		// We will allow a backend to fail with a full queue
+		// and just continue operating. This breaks some backpressure
+		// mechanisms and should be fixed.
+	} else {
+		backend->failing = 0;
+	}
+	group->relayed_lines++;
+
+	backend->bytes_queued += len + 1;
+	backend->relayed_lines++;
+}
+
 static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bool send_to_monitor_cluster) {
+	validate_parsed_result_t parsed_result;
 	if (ss->config->enable_validation && ss->validator != NULL) {
-		if (ss->validator(line, len) != 0) {
+		if (ss->validator(line, len, &parsed_result) != 0) {
 			return 1;
 		}
 	}
@@ -564,15 +670,9 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
 		stats_debug_log("%s ring is empty", send_to_monitor_cluster ? "monitor": "generic");
 	}
 
-	for (int i = 0; i < ring_size; i++) {
-		stats_backend_group_t* group = (stats_backend_group_t*)ring_ptr->data[i];
-		stats_backend_t *backend = hashring_choose_fromhash(group->ring, key_hash, NULL);
-
-		if (backend == NULL) {
-			/* No backend? No problem. Just skip doing anything */
-			stats_log("statsrelay: Failed to find a backend to send in %s ring", send_to_monitor_cluster ? "monitor": "general");
-			continue;
-		}
+	for (int group_num = 0; group_num < ring_size; group_num++) {
+		stats_backend_group_t* group = (stats_backend_group_t*)ring_ptr->data[group_num];
+		/* Check sampling result */
 
 		/* If we have a filter, lets run it */
 		if (group->ingress_filter) {
@@ -583,52 +683,13 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
 			}
 		}
 
-		/* Allow the line to be modified if needed */
-		char* linebuf = (char*)line;
-		int send_len = len;
-
-		if (group->prefix != NULL || group->suffix != NULL) {
-			static char prefix_line_buffer[MAX_UDP_LENGTH + 1];
-			linebuf = prefix_line_buffer;
-			linebuf[0] = '\0';
-
-			if (group->prefix) {
-				memcpy(linebuf, group->prefix, group->prefix_len);
-				linebuf += group->prefix_len;
-			}
-
-			memcpy(linebuf, key_buffer, key_len);
-			linebuf += key_len;
-
-			if (group->suffix) {
-				memcpy(linebuf, group->suffix, group->suffix_len);
-				linebuf += group->suffix_len;
-			}
-
-			/*                                copy \n\0 from line */
-			memcpy(linebuf, &line[key_len], (len + 2) - key_len);
-
-			/* Reset position */
-			linebuf = prefix_line_buffer;
-			send_len += group->prefix_len + group->suffix_len;
+		if (group->sampler) {
+			sampling_result r = sampler_consider_metric(group->sampler, key_buffer, &parsed_result);
+			if (r == SAMPLER_SAMPLING)
+				continue;
 		}
 
-		if (tcpclient_sendall(&backend->client, linebuf, send_len + 1) != 0) {
-			backend->dropped_lines++;
-			if (backend->failing == 0) {
-				stats_log("stats: Error sending to backend %s", backend->key);
-				backend->failing = 1;
-			}
-			// We will allow a backend to fail with a full queue
-			// and just continue operating. This breaks some backpressure
-			// mechanisms and should be fixed.
-		} else {
-			backend->failing = 0;
-		}
-		group->relayed_lines++;
-
-		backend->bytes_queued += len + 1;
-		backend->relayed_lines++;
+		stats_write_to_backend(line, len, key_buffer, key_hash, key_len, group);
 	}
 
 	return 0;
@@ -879,12 +940,12 @@ void stats_server_destroy(stats_server_t *server) {
 
 	for (int i = 0; i < server->rings->size; i++) {
 		stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
-		group_destroy(group);
+		group_destroy(server->loop, group);
 	}
 
 	for (int i = 0; i < server->monitor_ring->size; i++) {
 		stats_backend_group_t* group = (stats_backend_group_t*)server->monitor_ring->data[i];
-		group_destroy(group);
+		group_destroy(server->loop, group);
 	}
 	statsrelay_list_destroy(server->rings);
 	statsrelay_list_destroy(server->monitor_ring);

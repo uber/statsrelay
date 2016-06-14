@@ -1,3 +1,5 @@
+#undef NDEBUG
+
 #include "../hashring.h"
 #include "../log.h"
 

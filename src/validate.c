@@ -15,7 +15,7 @@ static char *valid_stat_types[6] = {
 static size_t valid_stat_types_len = 6;
 
 
-int validate_statsd(const char *line, size_t len) {
+int validate_statsd(const char *line, size_t len, validate_parsed_result_t* result) {
 	size_t plen;
 	char c;
 	int i, valid;
@@ -43,7 +43,9 @@ int validate_statsd(const char *line, size_t len) {
 
 	c = end[0];
 	end[0] = '\0';
-	if ((strtod(start, &err) == 0.0) && (err == start)) {
+	result->presampling_value = 1; /* Default pre-sampling to 1.0 */
+	result->value = strtod(start, &err);
+	if ((result->value == 0.0) && (err == start)) {
 		stats_log("validate: Invalid line \"%.*s\" unable to parse value as double", len, line);
 		goto statsd_err;
 	}
@@ -71,6 +73,7 @@ int validate_statsd(const char *line, size_t len) {
 			continue;
 		}
 		if (strncmp(start, valid_stat_types[i], plen) == 0) {
+			result->type = (metric_type)i; /* The indexes match the enum values in the comparison list */
 			valid = 1;
 			break;
 		}
@@ -92,7 +95,8 @@ int validate_statsd(const char *line, size_t len) {
 				stats_log("validate: Invalid line \"%.*s\" @ sample with no rate", len, line);
 				goto statsd_err;
 			}
-			if ((strtod(start, &err) == 0.0) && err == start) {
+			result->presampling_value = strtod(start, &err);
+			if ((result->presampling_value == 0.0) && err == start) {
 				stats_log("validate: Invalid line \"%.*s\" invalid sample rate", len, line);
 				goto statsd_err;
 			}

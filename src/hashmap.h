@@ -32,7 +32,7 @@ int hashmap_size(hashmap *map);
  * @arg value Output. Set to the value of th key.
  * 0 on success. -1 if not found.
  */
-int hashmap_get(hashmap *map, char *key, void **value);
+int hashmap_get(hashmap *map, const char *key, void **value);
 
 /**
  * Puts a key/value pair.
@@ -43,7 +43,7 @@ int hashmap_get(hashmap *map, char *key, void **value);
  * @arg value The value to set.
  * 0 if updated, 1 if added.
  */
-int hashmap_put(hashmap *map, char *key, void *value);
+int hashmap_put(hashmap *map, const char *key, void *value);
 
 /**
  * Deletes a key/value pair.
@@ -52,7 +52,7 @@ int hashmap_put(hashmap *map, char *key, void *value);
  * @arg key_len The key length
  * 0 on success. -1 if not found.
  */
-int hashmap_delete(hashmap *map, char *key);
+int hashmap_delete(hashmap *map, const char *key);
 
 /**
  * Clears all the key/value pairs.
