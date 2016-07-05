@@ -442,21 +442,26 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 	server->monitor_ring = statsrelay_list_new();
 	{
 		/* 
-		 * 1. Load the primary shard map from the configuration
+		 * 1. Load the primary shard map from the configuration, if present
 		 * 2. Load the duplicate shard map with extra parameters
 		 * 3. Load the monitor stats shard map, if present
 		 */
-		hashring_t ring = hashring_load_from_config(
-				config->ring, server, make_backend, nop_kill_backend, RING_DEFAULT);
-		if (ring == NULL) {
-			stats_error_log("hashring_load_from_config failed");
-			goto server_create_err;
-		}
-		statsrelay_list_expand(server->rings);
-		stats_backend_group_t* group = calloc(1, sizeof(stats_backend_group_t));
+		hashring_t ring;
+		stats_backend_group_t *group;
 
-		group->ring = ring;
-		server->rings->data[server->rings->size - 1] = (void*)group;
+		if (config->ring->size > 0) {
+			ring = hashring_load_from_config(
+					config->ring, server, make_backend, nop_kill_backend, RING_DEFAULT);
+			if (ring == NULL) {
+				stats_error_log("hashring_load_from_config failed");
+				goto server_create_err;
+			}
+			statsrelay_list_expand(server->rings);
+			group = calloc(1, sizeof(stats_backend_group_t));
+
+			group->ring = ring;
+			server->rings->data[server->rings->size - 1] = (void *) group;
+		}
 
 		for (int dupl_i = 0; dupl_i < config->dupl->size; dupl_i++) {
 			struct additional_config *dupl = config->dupl->data[dupl_i];

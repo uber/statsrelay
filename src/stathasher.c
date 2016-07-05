@@ -63,8 +63,24 @@ int main(int argc, char **argv) {
 
 	if (app_cfg->statsd_config.initialized) {
 		process_self_stats = app_cfg->statsd_config.send_self_stats;
-		statsd_ring = hashring_load_from_config(
-				app_cfg->statsd_config.ring, NULL, my_strdup, free, process_self_stats ? RING_MONITOR : RING_DEFAULT);
+
+		list_t ring = app_cfg->statsd_config.ring;
+		if (ring->size > 0) {
+			statsd_ring = hashring_load_from_config(
+					ring, NULL, my_strdup, free,
+					process_self_stats ? RING_MONITOR : RING_DEFAULT);
+		} else {
+			ring = app_cfg->statsd_config.dupl;
+			/**
+			 * we are not processing all the possible
+			 * duplicate_to list; FIXME
+			 */
+			for (int dupl_i = 0; dupl_i < ring->size; dupl_i++) {
+				struct additional_config *dupl = ring->data[dupl_i];
+				statsd_ring = hashring_load_from_config(dupl->ring, NULL, my_strdup, free, RING_DEFAULT);
+			}
+		}
+
 	}
 	destroy_json_config(app_cfg);
 

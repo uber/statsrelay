@@ -18,8 +18,8 @@ static bool connect_server(struct server *server,
 		protocol_parser_t parser,
 		validate_line_validator_t validator,
 		const char *name) {
-	if (config->ring->size == 0) {
-		stats_log("%s has no backends, skipping", name);
+	if (config->ring->size == 0 && config->dupl->size == 0) {
+		stats_error_log("%s has no backends, skipping", name);
 		return false;
 	}
 

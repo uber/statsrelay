@@ -130,6 +130,11 @@ class ConfigTestCase(TestCase):
         proc.wait()
         self.assertEqual(proc.returncode, 1)
 
+    def test_valid_config_file(self):
+        proc = subprocess.Popen(['./statsrelay', '-t', 'tests/statsrelay-no-shardmap.json'])
+        proc.wait()
+        self.assertEqual(proc.returncode, 0)
+
     def test_check_valid_tcp_file(self):
         with self.generate_config('tcp') as config_path:
             proc = subprocess.Popen(['./statsrelay', '-t', config_path])
@@ -382,6 +387,10 @@ class StathasherTests(unittest.TestCase):
     def test_stathasher_just_statsd(self):
         line = self.get_foo('tests/stathasher_just_statsd.json')
         self.assertEqual(line, 'key=foo statsd=127.0.0.1:3001 statsd_shard=1 process_self_stats=false\n')
+
+    def test_stathasher_statsd_no_shardmap(self):
+        line = self.get_foo('tests/statsrelay-no-shardmap.json')
+        self.assertEqual(line, 'key=foo statsd=127.0.0.1:8128 statsd_shard=0 process_self_stats=false\n')
 
     def test_stathasher_statsd_self_stats(self):
         line = self.get_foo('tests/statsrelay_statsd_self_stats.json')
