@@ -57,7 +57,7 @@ static char* get_string(const json_t* json, const char* key) {
 		return strdup(str);
 }
 
-static int get_int_orelse(json_t* json, const char* key, int def) {
+static int get_int_orelse(const json_t* json, const char* key, int def) {
 	json_t* v = json_object_get(json, key);
 	if (v == NULL)
 		return def;
@@ -101,6 +101,7 @@ static int parse_additional_config(const json_t* additional_config, struct proto
 			aconfig->suffix_len = 0;
 		}
 		aconfig->ingress_filter = get_string(additional_config, "input_filter");
+		aconfig->ingress_blacklist = get_string(additional_config, "input_blacklist");
 
 		aconfig->sampling_threshold = get_int_orelse(additional_config, "sampling_threshold", -1);
 		aconfig->sampling_window = get_int_orelse(additional_config, "sampling_window", -1);

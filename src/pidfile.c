@@ -3,15 +3,17 @@
 
 int read_pid(char *pidfile) {
 	FILE *f;
-	int pid;
+	int pid, ret;
 
 	if (!(f = fopen(pidfile,"r"))) {
 		return 0;
 	}
 
-	fscanf(f, "%d", &pid);
-	fclose(f);
-	return pid;
+	if ((ret = fscanf(f, "%d", &pid)) != EOF) {
+		fclose(f);
+		return pid;
+	}
+	return 0;
 }
 
 int remove_pid(char *pidfile) {
