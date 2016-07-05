@@ -79,6 +79,7 @@ static void parse_server_list(const json_t* jshards, list_t ring) {
 		statsrelay_list_expand(ring);
 		char* serverline = strdup(json_string_value(jserver));
 		stats_log("adding server %s", serverline);
+		stats_log("ring size %d", ring->size);
 		ring->data[ring->size - 1] = serverline;
 	}
 }
@@ -141,7 +142,12 @@ static int parse_proto(json_t* json, struct proto_config* config) {
 	config->reconnect_threshold = get_real_orelse(json, "reconnect_threshold", 1.0);
 
 	const json_t* jshards = json_object_get(json, "shard_map");
-	parse_server_list(jshards, config->ring);
+	/**
+	 * shard_map is optional
+	 */
+	if (jshards != NULL) {
+		parse_server_list(jshards, config->ring);
+	}
 
 	const json_t* duplicate = json_object_get(json, "duplicate_to");
 	if (json_is_object(duplicate)) {
@@ -209,7 +215,9 @@ parse_error:
 }
 
 static void destroy_proto_config(struct proto_config *config) {
-	statsrelay_list_destroy_full(config->ring);
+	if (config->ring->size > 0) {
+		statsrelay_list_destroy_full(config->ring);
+	}
 	for (int i = 0; i < config->dupl->size; i++) {
 		struct additional_config* dupl = (struct additional_config*)config->dupl->data[i];
 		if (dupl->prefix)
