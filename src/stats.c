@@ -238,6 +238,10 @@ static void group_destroy(struct ev_loop *loop, stats_backend_group_t* group) {
 		filter_free(group->ingress_filter);
 		group->ingress_filter = NULL;
 	}
+	if (group->ingress_blacklist) {
+		filter_free(group->ingress_blacklist);
+		group->ingress_blacklist = NULL;
+	}
 	if (group->sampler) {
 		sampler_destroy(group->sampler);
 		group->sampler = NULL;
@@ -246,15 +250,15 @@ static void group_destroy(struct ev_loop *loop, stats_backend_group_t* group) {
 	free(group);
 }
 
-static int group_filter_create(struct additional_config* dupl, stats_backend_group_t* group) {
+static int group_filter_create(char* input_filter, filter_t** group) {
 	filter_t* filter;
-	int st = filter_re_create(&filter, dupl->ingress_filter, NULL);
+	int st = filter_re_create(&filter, input_filter, NULL);
 	if (st != 0) {
 		stats_error_log("filter creation failed");
 		return st;
 	}
 	stats_log("created ingress filter");
-	group->ingress_filter = filter;
+	*group = filter;
 	return 0;
 }
 
@@ -332,6 +336,10 @@ static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, 
 				snprintf((char *)buffer_tail(response), buffer_spacecount(response),
 					"group_%i.relayed_lines:%" PRIu64 "|g\n",
 					i, group->relayed_lines));
+		buffer_produced(response,
+						snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+								 "group_%i.rejected_lines:%" PRIu64 "|g\n",
+								 i, group->rejected_lines));
 	}
 
 	for (size_t i = 0; i < server->num_backends; i++) {
@@ -474,8 +482,13 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 				ev_timer_start(server->loop, &group->sampling_timer);
 			}
 
-			if (dupl->ingress_filter) {
-				if (group_filter_create(dupl, group) != 0)
+			if (dupl->ingress_blacklist != NULL) {
+				if (group_filter_create(dupl->ingress_blacklist, &group->ingress_blacklist) != 0)
+					goto server_create_err;
+			}
+
+			if (dupl->ingress_filter != NULL) {
+				if (group_filter_create(dupl->ingress_filter, &group->ingress_filter) != 0)
 					goto server_create_err;
 			}
 		}
@@ -674,6 +687,16 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
 		stats_backend_group_t* group = (stats_backend_group_t*)ring_ptr->data[group_num];
 		/* Check sampling result */
 
+		if (group->ingress_blacklist) {
+			bool res = filter_exec(group->ingress_blacklist, key_buffer, key_len);
+
+			if (res) { /* incoming line matches the blacklist filter, drop! */
+				stats_debug_log("rejecting incoming line %s", key_buffer);
+				group->rejected_lines++;
+				continue;
+			}
+		}
+
 		/* If we have a filter, lets run it */
 		if (group->ingress_filter) {
 			bool res = filter_exec(group->ingress_filter, key_buffer, key_len);
@@ -742,6 +765,10 @@ void stats_send_statistics(stats_session_t *session) {
 				snprintf((char *)buffer_tail(response), buffer_spacecount(response),
 					"group:%i relayed_lines gauge %" PRIu64 "\n",
 					i, group->relayed_lines));
+		buffer_produced(response,
+						snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+								 "group:%i rejected_lines gauge %" PRIu64 "\n",
+								 i, group->rejected_lines));
 	}
 
 	for (size_t i = 0; i < session->server->num_backends; i++) {

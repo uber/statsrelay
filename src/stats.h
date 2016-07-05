@@ -45,6 +45,7 @@ typedef struct {
 	size_t suffix_len;
 
 	filter_t* ingress_filter;
+	filter_t* ingress_blacklist;
 	hashring_t ring;
 
 	sampler_t* sampler;
@@ -54,6 +55,7 @@ typedef struct {
 	/* Stats */
 	uint64_t relayed_lines;
 	uint64_t filtered_lines;
+	uint64_t rejected_lines;
 } stats_backend_group_t;
 
 struct stats_server_t {

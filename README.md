@@ -17,6 +17,7 @@ This version differs from upstream in several key ways:
 - Relaying can now be done to one more more destinations, with:
   - Prefix and suffixing of any metric names
   - Ingress filtering based on a regular expression
+  - Ingress blacklist based on PCRE compliant regular expression
 - Several key bug fixes designed to improve operationability
 
 
@@ -94,11 +95,11 @@ global bytes_recv_tcp gauge 41
 global total_connections gauge 1
 global last_reload timestamp 0
 global malformed_lines gauge 0
+group:0 rejected_lines gauge 3
 backend:127.0.0.2:8127:tcp bytes_queued gauge 27
 backend:127.0.0.2:8127:tcp bytes_sent gauge 27
 backend:127.0.0.2:8127:tcp relayed_lines gauge 3
 backend:127.0.0.2:8127:tcp dropped_lines gauge 0
-
 ```
 
 # Scaling With Virtual Shards

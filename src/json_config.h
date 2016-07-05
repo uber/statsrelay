@@ -23,13 +23,19 @@ struct additional_config {
 	char* ingress_filter;
 
 	/**
+	 *  A PCRE compatible regex which will drop metrics matching this regex to the
+	 *  duplicate endpoint.
+	 */
+	char* ingress_blacklist;
+
+	/**
 	 * sampling_threshold: start sampling messages received at a rate greater than
 	 * this quantity over the sampling_window
 	 */
 	int sampling_threshold;
 
 	/**
-	 * sampling_window: number of seconds to do sampling before flusing internally
+	 * sampling_window: number of seconds to do sampling before flushing internally
 	 */
 	int sampling_window;
 

@@ -60,7 +60,7 @@ void stats_vlog(const char *prefix,
 
 	if (g_verbose == 1) {
 		if (prefix != NULL) {
-			fprintf(stderr, prefix);
+			fprintf(stderr, "%s", prefix);
 		}
 		total_written = 0;
 		while (total_written < fmt_len) {
