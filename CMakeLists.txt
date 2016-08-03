@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 project(statsrelay)
-set(PACKAGE_VERSION "2.2.0")
+set(PACKAGE_VERSION "2.3.0")
 set(PACKAGE_STRING "statsrelay ${PACKAGE_VERSION}")
 
 enable_testing()
@@ -75,10 +75,13 @@ add_executable(test_vector ${SOURCE_FILES} src/tests/test_vector.c)
 target_link_libraries(test_vector ev pcre jansson)
 add_test(NAME test_vector COMMAND test_vector)
 
-
 add_executable(test_sampler ${SOURCE_FILES} src/tests/test_sampler.c)
 target_link_libraries(test_sampler ev pcre jansson)
 add_test(NAME test_sampler COMMAND test_sampler)
+
+add_executable(test_timer_sampler ${SOURCE_FILES} src/tests/test_timer_sampler.c)
+target_link_libraries(test_timer_sampler ev pcre jansson)
+add_test(NAME test_timer_sampler COMMAND test_timer_sampler)
 
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND}
         DEPENDS test_vector test_hashring test_hashlib)

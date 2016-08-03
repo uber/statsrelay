@@ -40,6 +40,11 @@ struct additional_config {
 	int sampling_window;
 
 	/**
+	 * enable_timer_sampling: timer sampling turned on.
+	 */
+	bool enable_timer_sampling;
+
+	/**
 	 * A list of host:port combos where to forward traffic, consistently hashed.
 	 */
 	list_t ring;

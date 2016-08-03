@@ -482,6 +482,7 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 				if (res) {
 					stats_error_log("sampler loading failed with error %d", res);
 				}
+				group->enable_timer_sampling = dupl->enable_timer_sampling;
 				ev_timer_init(&group->sampling_timer, sampling_handler, dupl->sampling_window, 0);
 				group->sampling_timer.data = (void*)group;
 				ev_timer_start(server->loop, &group->sampling_timer);
@@ -712,7 +713,13 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
 		}
 
 		if (group->sampler) {
-			sampling_result r = sampler_consider_metric(group->sampler, key_buffer, &parsed_result);
+			sampling_result r = SAMPLER_NOT_SAMPLING;
+			if (parsed_result.type == METRIC_COUNTER) {
+				r = sampler_consider_metric(group->sampler, key_buffer, &parsed_result);
+			} else if (parsed_result.type == METRIC_TIMER &&
+					   group->enable_timer_sampling) {
+				r = sampler_consider_timer(group->sampler, key_buffer, &parsed_result);
+			}
 			if (r == SAMPLER_SAMPLING)
 				continue;
 		}

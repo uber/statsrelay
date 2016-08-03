@@ -52,6 +52,8 @@ typedef struct {
 
 	ev_timer sampling_timer;
 
+	bool enable_timer_sampling;
+
 	/* Stats */
 	uint64_t relayed_lines;
 	uint64_t filtered_lines;
