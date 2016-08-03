@@ -52,6 +52,10 @@ class TestCase(unittest.TestCase):
         bytes_read = fd.recv(size)
         self.assertEqual(bytes_read, expected)
 
+    def check_recv_in(self, fd, subset, size=512):
+        bytes_read = fd.recv(size)
+        self.assertIn(subset, bytes_read)
+
     def recv_status(self, fd):
         return fd.recv(65536)
 
@@ -198,6 +202,48 @@ class StatsdTestCase(TestCase):
             self.assertEqual(backends[key]['bytes_sent'], 172)
             self.assertEqual(backends[key]['bytes_queued'], 74)
 
+    def test_tcp_with_timer_sampler(self):
+        with self.generate_config('tcp', suffix="-sample.json") as config_path:
+            self.launch_process(config_path)
+            fd, addr = self.statsd_listener.accept()
+            sender = self.connect('tcp', self.bind_statsd_port)
+            for i in range(0, 5):
+                sender.sendall('test.srv.req:1|ms\n')
+                expected = 'test-1.test.srv.req.suffix:1|ms\n'
+                self.check_recv(fd, expected, len(expected))
+
+            # We should now be in sampling mode
+            for i in range(0, 200):
+                sender.sendall('test.srv.req:1|ms\n')
+
+            time.sleep(4.0)
+            self.check_recv_in(fd, 'test-1.test.srv.req.suffix:1|ms@0.005\n')
+
+            # We should now be in sampling mode
+            for i in range(0, 100):
+                sender.sendall('test.srv.req:1|ms\n')
+
+            self.check_recv_in(fd, 'test-1.test.srv.req.suffix:1|ms@0.01\n')
+
+            sender.sendall('status\n')
+            status = sender.recv(65536)
+            sender.close()
+
+            backends = defaultdict(dict)
+            for line in status.split('\n'):
+                if not line:
+                    break
+                if not line.startswith('backend:'):
+                    continue
+                backend, key, valuetype, value = line.split(' ', 3)
+                backend = backend.split(':', 1)[1]
+                backends[backend][key] = int(value)
+
+            key = '127.0.0.1:%d:tcp' % (self.statsd_listener.getsockname()[1],)
+            self.assertEqual(backends[key]['relayed_lines'], 15)
+            self.assertEqual(backends[key]['dropped_lines'], 0)
+            self.assertEqual(backends[key]['bytes_sent'], 535)
+            self.assertEqual(backends[key]['bytes_queued'], 325)
 
     def test_tcp_with_ingress_blacklist(self):
         with self.generate_config('tcp', suffix="-blacklist.json") as config_path:
@@ -395,10 +441,6 @@ class StathasherTests(unittest.TestCase):
     def test_stathasher_statsd_self_stats(self):
         line = self.get_foo('tests/statsrelay_statsd_self_stats.json')
         self.assertEqual(line, 'key=foo statsd=127.0.0.1:8128 statsd_shard=5 process_self_stats=true\n')
-
-    def test_stathasher_statsd_self_stats_fail(self):
-        line = self.get_foo('tests/statsrelay_self_stats_bad.json')
-        self.assertEqual(line, '')
 
 
 def main():

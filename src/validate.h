@@ -10,11 +10,11 @@
 typedef enum {
 	METRIC_UNKNOWN = -1,
 	METRIC_COUNTER = 0,
-	METRIC_TIMER = 2,
-	METRIC_KV = 3,
-	METRIC_GAUGE = 4,
-	METRIC_HIST = 5,
-	METRIC_S = 6
+	METRIC_TIMER = 1,
+	METRIC_KV = 2,
+	METRIC_GAUGE = 3,
+	METRIC_HIST = 4,
+	METRIC_S = 5
 } metric_type;
 
 typedef struct {

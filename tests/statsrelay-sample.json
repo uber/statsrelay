@@ -9,6 +9,7 @@
             {
                 "prefix": "test-1.",
                 "suffix": ".suffix",
+                "enable_timer_sampling": true,
                 "sampling_threshold": 5,
                 "sampling_window": 3,
                 "shard_map":["127.0.0.1:SEND_STATSD_PORT"]

@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
 	assert(sampler_consider_metric(sampler, c1n, &c1_res) == SAMPLER_SAMPLING);
 
 	/* Trigger the time-based flush of the sampler */
-	sampler_update_flags(sampler);
+	sampler_update_flags(sampler, METRIC_COUNTER);
 
 	/* Feed another value, make sure we are now in sampling mode */
 	assert(sampler_consider_metric(sampler, c1n, &c1_res) == SAMPLER_SAMPLING);
@@ -71,12 +71,20 @@ int main(int argc, char** argv) {
 	sampler_flush(sampler, print_callback, "foo:1|c@0.0001\n");
 
 	/* foo should still be sampling (it does so across two periods) - lets check */
-	assert(sampler_is_sampling(sampler, c1n) == SAMPLER_SAMPLING);
+	assert(sampler_is_sampling(sampler, c1n, METRIC_COUNTER) == SAMPLER_SAMPLING);
 
 	/* Check with a counter thats not just 1 */
 	for (int i = 0; i < 10; i++) {
 		assert(sampler_consider_metric(sampler, c2n, &c2_res) == SAMPLER_NOT_SAMPLING);
 	}
+
+	/* This 10th update should be sampled */
+	assert(sampler_consider_metric(sampler, c2n, &c2_res) == SAMPLER_SAMPLING);
+
+	/* This 11th update should be sampled */
+	assert(sampler_consider_metric(sampler, c2n, &c2_res) == SAMPLER_SAMPLING);
+
+	sampler_flush(sampler, print_callback, "bar:2|c@0.5\n");
 
 	/* Load a large number of new sampled samples into the sampler */
 	for (int i = 0; i < 10000; i++) {
@@ -85,10 +93,8 @@ int main(int argc, char** argv) {
 
 	sampler_flush(sampler, print_callback, "bar:2|c@0.0001\n");
 
-
 	/* foo should now not be sampling */
-	assert(sampler_is_sampling(sampler, c1n) == SAMPLER_NOT_SAMPLING);
-
+	assert(sampler_is_sampling(sampler, c1n, METRIC_COUNTER) == SAMPLER_NOT_SAMPLING);
 
 	return 0;
 }

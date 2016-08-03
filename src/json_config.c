@@ -23,7 +23,7 @@ static void init_proto_config(struct proto_config *protoc) {
 	protoc->sstats = statsrelay_list_new();
 }
 
-static bool get_bool_orelse(json_t* json, const char* key, bool def) {
+static bool get_bool_orelse(const json_t* json, const char* key, bool def) {
 	json_t* v = json_object_get(json, key);
 	if (v == NULL)
 		return def;
@@ -106,6 +106,8 @@ static int parse_additional_config(const json_t* additional_config, struct proto
 
 		aconfig->sampling_threshold = get_int_orelse(additional_config, "sampling_threshold", -1);
 		aconfig->sampling_window = get_int_orelse(additional_config, "sampling_window", -1);
+
+		aconfig->enable_timer_sampling = get_bool_orelse(additional_config, "enable_timer_sampling", false);
 
 		if (aconfig->sampling_threshold > 0 && !config->enable_validation) {
 			stats_error_log("enabling sampling requires turning on validation of the statsd packet format. sorry.");
