@@ -48,11 +48,15 @@ typedef struct {
 	filter_t* ingress_blacklist;
 	hashring_t ring;
 
-	sampler_t* sampler;
+	sampler_t* count_sampler;
 
-	ev_timer sampling_timer;
+	sampler_t* timer_sampler;
 
-	bool enable_timer_sampling;
+	/** dedicated event timer for timer sampling */
+	ev_timer timer_sampling_watcher;
+
+	/** dedicated event timer for counter roll-ups */
+	ev_timer counter_sampling_watcher;
 
 	/* Stats */
 	uint64_t relayed_lines;

@@ -107,9 +107,10 @@ static int parse_additional_config(const json_t* additional_config, struct proto
 		aconfig->sampling_threshold = get_int_orelse(additional_config, "sampling_threshold", -1);
 		aconfig->sampling_window = get_int_orelse(additional_config, "sampling_window", -1);
 
-		aconfig->enable_timer_sampling = get_bool_orelse(additional_config, "enable_timer_sampling", false);
+		aconfig->timer_sampling_threshold = get_int_orelse(additional_config, "timer_sampling_threshold", -1);
+		aconfig->timer_sampling_window = get_int_orelse(additional_config, "timer_sampling_window", -1);
 
-		if (aconfig->sampling_threshold > 0 && !config->enable_validation) {
+		if ((aconfig->sampling_threshold > 0 || aconfig->timer_sampling_threshold > 0) && !config->enable_validation) {
 			stats_error_log("enabling sampling requires turning on validation of the statsd packet format. sorry.");
 			return -1;
 		}

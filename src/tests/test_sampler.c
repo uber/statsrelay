@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
 	assert(sampler_consider_metric(sampler, c1n, &c1_res) == SAMPLER_SAMPLING);
 
 	/* Trigger the time-based flush of the sampler */
-	sampler_update_flags(sampler, METRIC_COUNTER);
+	sampler_update_flags(sampler);
 
 	/* Feed another value, make sure we are now in sampling mode */
 	assert(sampler_consider_metric(sampler, c1n, &c1_res) == SAMPLER_SAMPLING);

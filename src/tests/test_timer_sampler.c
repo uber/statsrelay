@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
 	assert(sampler_consider_timer(sampler, t1n, &t1_res) == SAMPLER_SAMPLING);
 
 	/* Trigger the time-based flush of the sampler */
-	sampler_update_flags(sampler, METRIC_TIMER);
+	sampler_update_flags(sampler);
 
 	/* Feed another value, make sure we are now in sampling mode */
 	assert(sampler_consider_timer(sampler, t1n, &t1_res) == SAMPLER_SAMPLING);
@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
 	/* Feed another value, make sure we are now in sampling mode */
 	assert(sampler_consider_timer(sampler, t1n, &t1_res) == SAMPLER_SAMPLING);
 
-	sampler_flush(sampler, print_callback, "differing_geohash_query:77923.2|ms@0.333333\n");
+	sampler_flush(sampler, print_callback, "differing_geohash_query:77923.2|ms@1\n");
 
 	/* This update should not sampled */
 	assert(sampler_consider_timer(sampler, t1n, &t1_res) == SAMPLER_NOT_SAMPLING);
@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
 		assert(sampler_consider_timer(sampler, t1n, &t1_res) == SAMPLER_SAMPLING);
 	}
 
-	sampler_flush(sampler, print_callback, "differing_geohash_query:77923.2|ms@0.0001\n");
+	sampler_flush(sampler, print_callback, "differing_geohash_query:77923.2|ms@0.001\n");
 
 	/* foo should still be sampling (it does so across two periods) - lets check */
 	assert(sampler_is_sampling(sampler, t1n, METRIC_TIMER) == SAMPLER_SAMPLING);
@@ -84,7 +84,7 @@ int main(int argc, char** argv) {
 		assert(sampler_consider_timer(sampler, t2n, &t2_res) == SAMPLER_SAMPLING);
 	}
 
-	sampler_flush(sampler, print_callback, "envoy.downstream_cx_length_ms:72|ms@0.0001\n");
+	sampler_flush(sampler, print_callback, "envoy.downstream_cx_length_ms:72|ms@0.001\n");
 
 	/* foo should now not be sampling */
 	assert(sampler_is_sampling(sampler, t1n, METRIC_TIMER) == SAMPLER_NOT_SAMPLING);
