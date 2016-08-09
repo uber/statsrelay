@@ -217,13 +217,13 @@ class StatsdTestCase(TestCase):
                 sender.sendall('test.srv.req:1|ms\n')
 
             time.sleep(4.0)
-            self.check_recv_in(fd, 'test-1.test.srv.req.suffix:1|ms@0.005\n')
+            self.check_recv_in(fd, 'test-1.test.srv.req.suffix:1|ms@0.025\n')
 
             # We should now be in sampling mode
             for i in range(0, 100):
                 sender.sendall('test.srv.req:1|ms\n')
 
-            self.check_recv_in(fd, 'test-1.test.srv.req.suffix:1|ms@0.01\n')
+            self.check_recv_in(fd, 'test-1.test.srv.req.suffix:1|ms@0.05\n')
 
             sender.sendall('status\n')
             status = sender.recv(65536)

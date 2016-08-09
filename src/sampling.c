@@ -15,8 +15,7 @@ struct sampler {
 	int threshold;
 	int window;
 	struct drand48_data randbuf;
-	hashmap *m_counters;
-	hashmap *m_timers;
+	hashmap *map;
 };
 
 struct sampler_flush_data {
@@ -48,6 +47,11 @@ struct sample_bucket {
 	metric_type type;
 
 	/**
+	 * Index of recent item in the reservoir
+	 */
+	int reservoir_index;
+
+	/**
 	 * Maintain a reservoir of 'threshold' timer values
 	 */
 	double reservoir[];
@@ -56,8 +60,7 @@ struct sample_bucket {
 int sampler_init(sampler_t** sampler, int threshold, int window) {
 	struct sampler *sam = calloc(1, sizeof(struct sampler));
 
-	hashmap_init(HM_SIZE, &sam->m_counters);
-	hashmap_init(HM_SIZE, &sam->m_timers);
+	hashmap_init(HM_SIZE, &sam->map);
 
 	sam->threshold = threshold;
 	sam->window = window;
@@ -75,6 +78,7 @@ static int sampler_update_callback(void* _s, const char* key, void* _value) {
 		bucket->sampling = true;
 	} else if (bucket->sampling && bucket->last_window_count <= sampler->threshold) {
 		bucket->sampling = false;
+		bucket->reservoir_index = 0;
 		stats_log("stopped sampling '%s'", key);
 	}
 
@@ -97,7 +101,13 @@ static int sampler_flush_callback(void* _s, const char* key, void* _value) {
 		len -= 1; /* \n is not part of the length */
 		flush_data->cb(flush_data->data, key, line_buffer, len);
 	} else if (bucket->type == METRIC_TIMER) {
-		double sample_rate = (double)1.0 / bucket->count;
+		int num_samples = 0;
+		for (int j = 0; j < flush_data->sampler->threshold; j++) {
+			if (!isnan(bucket->reservoir[j])) {
+				num_samples++;
+			}
+		}
+		double sample_rate = (double)(1.0 * num_samples) / bucket->count;
 		for (int j = 0; j < flush_data->sampler->threshold; j++) {
 			if (!isnan(bucket->reservoir[j])) {
 				len = sprintf(line_buffer, "%s:%g|ms@%g\n", key, bucket->reservoir[j], sample_rate);
@@ -121,18 +131,13 @@ void sampler_flush(sampler_t* sampler, sampler_flush_cb cb, void* data) {
 		.sampler = sampler,
 		.cb = cb
 	};
-	hashmap_iter(sampler->m_counters, sampler_flush_callback, (void*)&fd);
-	hashmap_iter(sampler->m_timers, sampler_flush_callback, (void*)&fd);
+	hashmap_iter(sampler->map, sampler_flush_callback, (void*)&fd);
 }
 
 sampling_result sampler_is_sampling(sampler_t* sampler, const char* name, metric_type type) {
 	struct sample_bucket* bucket = NULL;
 
-	if (type == METRIC_COUNTER) {
-		hashmap_get(sampler->m_counters, name, (void**)&bucket);
-	} else if (type == METRIC_TIMER) {
-		hashmap_get(sampler->m_timers, name, (void**)&bucket);
-	}
+	hashmap_get(sampler->map, name, (void**)&bucket);
 
 	if (bucket == NULL) {
 		return SAMPLER_NOT_SAMPLING;
@@ -144,12 +149,8 @@ sampling_result sampler_is_sampling(sampler_t* sampler, const char* name, metric
 	}
 }
 
-void sampler_update_flags(sampler_t* sampler, metric_type type) {
-	if (type == METRIC_COUNTER) {
-		hashmap_iter(sampler->m_counters, sampler_update_callback, (void*)sampler);
-	} else if (type == METRIC_TIMER) {
-		hashmap_iter(sampler->m_timers, sampler_update_callback, (void*)sampler);
-	}
+void sampler_update_flags(sampler_t* sampler) {
+	hashmap_iter(sampler->map, sampler_update_callback, (void*)sampler);
 }
 
 sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, validate_parsed_result_t* parsed) {
@@ -159,11 +160,12 @@ sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, val
 	}
 
 	struct sample_bucket* bucket = NULL;
-	hashmap_get(sampler->m_timers, name, (void**)&bucket);
+	hashmap_get(sampler->map, name, (void**)&bucket);
 	if (bucket == NULL) {
 		/* Intialize a new bucket */
 		bucket = malloc(sizeof(struct sample_bucket) + (sizeof(double) * sampler_threshold(sampler)));
 		bucket->sampling = false;
+		bucket->reservoir_index = 0;
 		bucket->last_window_count = 0;
 		bucket->type = parsed->type;
 		bucket->sum = 0;
@@ -173,7 +175,7 @@ sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, val
 			bucket->reservoir[k] = NAN;
 		}
 		bucket->last_window_count += 1;
-		hashmap_put(sampler->m_timers, name, (void*)bucket);
+		hashmap_put(sampler->map, name, (void*)bucket);
 	} else {
 		bucket->last_window_count++;
 
@@ -184,26 +186,24 @@ sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, val
 		}
 
 		if (bucket->sampling) {
-			int reservoir_index = bucket->last_window_count - sampler_threshold(sampler);
-			if (reservoir_index > 0 && reservoir_index < sampler_threshold(sampler)) {
-				bucket->reservoir[reservoir_index - 1] = parsed->value;
-			}
-
-			long int i, k;
 			double value = parsed->value;
 
-			lrand48_r(&sampler->randbuf, &i);
+			if (bucket->reservoir_index < sampler_threshold(sampler)) {
+				bucket->reservoir[bucket->reservoir_index++] = value;
+			} else {
+				long int i, k;
+				lrand48_r(&sampler->randbuf, &i);
+
+				k = i % (bucket->last_window_count);
+
+				if (k < sampler_threshold(sampler)) {
+					bucket->reservoir[k] = value;
+				}
+			}
 
 			double count = 1.0;
 			if (parsed->presampling_value > 0.0 && parsed->presampling_value < 1.0) {
-				value = value * (1.0 / parsed->presampling_value);
 				count = 1 * (1.0 / parsed->presampling_value);
-			}
-
-			k = i % (bucket->last_window_count);
-
-			if (k < sampler_threshold(sampler)) {
-				bucket->reservoir[k] = value;
 			}
 
 			bucket->sum += value;
@@ -222,7 +222,7 @@ sampling_result sampler_consider_metric(sampler_t* sampler, const char* name, va
 	}
 
 	struct sample_bucket* bucket = NULL;
-	hashmap_get(sampler->m_counters, name, (void**)&bucket);
+	hashmap_get(sampler->map, name, (void**)&bucket);
 	if (bucket == NULL) {
 		/* Intialize a new bucket */
 		bucket = malloc(sizeof(struct sample_bucket));
@@ -231,7 +231,7 @@ sampling_result sampler_consider_metric(sampler_t* sampler, const char* name, va
 		bucket->type = parsed->type;
 		bucket->sum = 0;
 		bucket->count = 0;
-		hashmap_put(sampler->m_counters, name, (void*)bucket);
+		hashmap_put(sampler->map, name, (void*)bucket);
 	} else {
 		bucket->last_window_count++;
 
@@ -265,6 +265,5 @@ int sampler_threshold(sampler_t* sampler) {
 }
 
 void sampler_destroy(sampler_t* sampler) {
-	hashmap_destroy(sampler->m_counters);
-	hashmap_destroy(sampler->m_timers);
+	hashmap_destroy(sampler->map);
 }

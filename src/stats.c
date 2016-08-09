@@ -79,6 +79,19 @@ static stats_backend_t *find_backend(stats_backend_t **backend_lists, size_t num
 	return NULL;
 }
 
+typedef void (*s_handler)(struct ev_loop *loop, struct ev_timer* timer,  int events);
+
+static void initialize_samplers(sampler_t **sampler, ev_timer *watcher, stats_backend_group_t *group,
+			stats_server_t *server, int threshold, int window, s_handler handler) {
+	int res = sampler_init(sampler, threshold, window);
+	if (res) {
+		stats_error_log("sampler: loading failed with error %d", res);
+	}
+	ev_timer_init(watcher, handler, window, 0);
+	(*watcher).data = (void*)group;
+	ev_timer_start(server->loop, watcher);
+}
+
 // Make a backend, returning it from the backend list if it's already
 // been created.
 static void* make_backend(const char *host_and_port, void *data, hashring_type_t r_type) {
@@ -242,10 +255,15 @@ static void group_destroy(struct ev_loop *loop, stats_backend_group_t* group) {
 		filter_free(group->ingress_blacklist);
 		group->ingress_blacklist = NULL;
 	}
-	if (group->sampler) {
-		sampler_destroy(group->sampler);
-		group->sampler = NULL;
-		ev_timer_stop(loop, &group->sampling_timer);
+	if (group->count_sampler) {
+		sampler_destroy(group->count_sampler);
+		group->count_sampler = NULL;
+		ev_timer_stop(loop, &group->counter_sampling_watcher);
+	}
+	if (group->timer_sampler) {
+		sampler_destroy(group->timer_sampler);
+		group->timer_sampler = NULL;
+		ev_timer_stop(loop, &group->timer_sampling_watcher);
 	}
 	free(group);
 }
@@ -415,10 +433,19 @@ static void sampling_flush_cb(void* data, const char* key, const char* line, int
 static void sampling_handler(struct ev_loop *loop, struct ev_timer* timer, int events) {
 	stats_backend_group_t* group = (stats_backend_group_t*)timer->data;
 
-	sampler_flush(group->sampler, sampling_flush_cb, (void*)group);
+	sampler_flush(group->count_sampler, sampling_flush_cb, (void*)group);
 
-	ev_timer_set(&group->sampling_timer, sampler_window(group->sampler), 0.0);
-	ev_timer_start(loop, &group->sampling_timer);
+	ev_timer_set(&group->counter_sampling_watcher, sampler_window(group->count_sampler), 0.0);
+	ev_timer_start(loop, &group->counter_sampling_watcher);
+}
+
+static void timer_sampling_handler(struct ev_loop *loop, struct ev_timer* timer, int events) {
+	stats_backend_group_t* group = (stats_backend_group_t*)timer->data;
+
+	sampler_flush(group->timer_sampler, sampling_flush_cb, (void*)group);
+
+	ev_timer_set(&group->timer_sampling_watcher, sampler_window(group->timer_sampler), 0.0);
+	ev_timer_start(loop, &group->timer_sampling_watcher);
 }
 
 stats_server_t *stats_server_create(struct ev_loop *loop,
@@ -477,15 +504,15 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 			group->ring = ring;
 			group_prefix_create(dupl, group);
 
+
 			if (dupl->sampling_threshold > 0) {
-				int res = sampler_init(&group->sampler, dupl->sampling_threshold, dupl->sampling_window);
-				if (res) {
-					stats_error_log("sampler loading failed with error %d", res);
-				}
-				group->enable_timer_sampling = dupl->enable_timer_sampling;
-				ev_timer_init(&group->sampling_timer, sampling_handler, dupl->sampling_window, 0);
-				group->sampling_timer.data = (void*)group;
-				ev_timer_start(server->loop, &group->sampling_timer);
+				initialize_samplers(&group->count_sampler, &group->counter_sampling_watcher, group, server,
+						dupl->sampling_threshold, dupl->sampling_window, sampling_handler);
+			}
+
+			if (dupl->timer_sampling_threshold > 0) {
+				initialize_samplers(&group->timer_sampler, &group->timer_sampling_watcher, group, server,
+						dupl->timer_sampling_threshold, dupl->timer_sampling_window, timer_sampling_handler);
 			}
 
 			if (dupl->ingress_blacklist != NULL) {
@@ -712,13 +739,18 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
 			}
 		}
 
-		if (group->sampler) {
+		if (group->count_sampler) {
 			sampling_result r = SAMPLER_NOT_SAMPLING;
 			if (parsed_result.type == METRIC_COUNTER) {
-				r = sampler_consider_metric(group->sampler, key_buffer, &parsed_result);
-			} else if (parsed_result.type == METRIC_TIMER &&
-					   group->enable_timer_sampling) {
-				r = sampler_consider_timer(group->sampler, key_buffer, &parsed_result);
+				r = sampler_consider_metric(group->count_sampler, key_buffer, &parsed_result);
+			}
+			if (r == SAMPLER_SAMPLING)
+				continue;
+		}
+		if (group->timer_sampler) {
+			sampling_result r = SAMPLER_NOT_SAMPLING;
+			if (parsed_result.type == METRIC_TIMER) {
+				r = sampler_consider_timer(group->timer_sampler, key_buffer, &parsed_result);
 			}
 			if (r == SAMPLER_SAMPLING)
 				continue;

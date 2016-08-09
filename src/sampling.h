@@ -33,7 +33,7 @@ sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, val
  * Walk through all keys in the sampler and update the sampling or not sampling flag,
  * but do not flush any data.
  */
-void sampler_update_flags(sampler_t* sampler, metric_type type);
+void sampler_update_flags(sampler_t* sampler);
 
 /**
  * Walk through all keys in the sampler and invoke cb() on them, passing that callback

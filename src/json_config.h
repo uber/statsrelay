@@ -39,10 +39,17 @@ struct additional_config {
 	 */
 	int sampling_window;
 
+
 	/**
-	 * enable_timer_sampling: timer sampling turned on.
+	 * timer_sampling_threshold: start sampling messages received at a rate greater than
+	 * this quantity over the timer_sampling_window
 	 */
-	bool enable_timer_sampling;
+	int timer_sampling_threshold;
+
+	/**
+	 * timer_sampling_window: number of seconds to sample timers before flushing internally
+	 */
+	int timer_sampling_window;
 
 	/**
 	 * A list of host:port combos where to forward traffic, consistently hashed.
