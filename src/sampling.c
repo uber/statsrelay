@@ -14,6 +14,7 @@
 struct sampler {
 	int threshold;
 	int window;
+	int reservoir_size;
 	struct drand48_data randbuf;
 	hashmap *map;
 };
@@ -57,13 +58,14 @@ struct sample_bucket {
 	double reservoir[];
 };
 
-int sampler_init(sampler_t** sampler, int threshold, int window) {
+int sampler_init(sampler_t** sampler, int threshold, int window, int reservoir_size) {
 	struct sampler *sam = calloc(1, sizeof(struct sampler));
 
 	hashmap_init(HM_SIZE, &sam->map);
 
 	sam->threshold = threshold;
 	sam->window = window;
+	sam->reservoir_size = reservoir_size;
 	srand48_r(time(NULL), &sam->randbuf);
 
 	*sampler = sam;
@@ -79,7 +81,9 @@ static int sampler_update_callback(void* _s, const char* key, void* _value) {
 	} else if (bucket->sampling && bucket->last_window_count <= sampler->threshold) {
 		bucket->sampling = false;
 		bucket->reservoir_index = 0;
-		stats_log("stopped sampling '%s'", key);
+		stats_log("stopped %s sampling '%s'",
+				  bucket->type == METRIC_COUNTER ? "counter": "timer",
+				  key);
 	}
 
 	bucket->last_window_count = 0;
@@ -113,6 +117,7 @@ static int sampler_flush_callback(void* _s, const char* key, void* _value) {
 				len = sprintf(line_buffer, "%s:%g|ms@%g\n", key, bucket->reservoir[j], sample_rate);
 				len -= 1;
 				flush_data->cb(flush_data->data, key, line_buffer, len);
+				bucket->reservoir[j] = NAN;
 			}
 		}
 	}
@@ -163,7 +168,7 @@ sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, val
 	hashmap_get(sampler->map, name, (void**)&bucket);
 	if (bucket == NULL) {
 		/* Intialize a new bucket */
-		bucket = malloc(sizeof(struct sample_bucket) + (sizeof(double) * sampler_threshold(sampler)));
+		bucket = malloc(sizeof(struct sample_bucket) + (sizeof(double) * sampler->reservoir_size));
 		bucket->sampling = false;
 		bucket->reservoir_index = 0;
 		bucket->last_window_count = 0;

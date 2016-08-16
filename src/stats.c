@@ -82,8 +82,8 @@ static stats_backend_t *find_backend(stats_backend_t **backend_lists, size_t num
 typedef void (*s_handler)(struct ev_loop *loop, struct ev_timer* timer,  int events);
 
 static void initialize_samplers(sampler_t **sampler, ev_timer *watcher, stats_backend_group_t *group,
-			stats_server_t *server, int threshold, int window, s_handler handler) {
-	int res = sampler_init(sampler, threshold, window);
+			stats_server_t *server, int threshold, int window, int reservoir_size, s_handler handler) {
+	int res = sampler_init(sampler, threshold, window, reservoir_size);
 	if (res) {
 		stats_error_log("sampler: loading failed with error %d", res);
 	}
@@ -507,12 +507,12 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 
 			if (dupl->sampling_threshold > 0) {
 				initialize_samplers(&group->count_sampler, &group->counter_sampling_watcher, group, server,
-						dupl->sampling_threshold, dupl->sampling_window, sampling_handler);
+						dupl->sampling_threshold, dupl->sampling_window, dupl->reservoir_size, sampling_handler);
 			}
 
 			if (dupl->timer_sampling_threshold > 0) {
 				initialize_samplers(&group->timer_sampler, &group->timer_sampling_watcher, group, server,
-						dupl->timer_sampling_threshold, dupl->timer_sampling_window, timer_sampling_handler);
+						dupl->timer_sampling_threshold, dupl->timer_sampling_window, dupl->reservoir_size, timer_sampling_handler);
 			}
 
 			if (dupl->ingress_blacklist != NULL) {
