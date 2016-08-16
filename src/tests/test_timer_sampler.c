@@ -13,6 +13,9 @@ const char* t1n = "differing_geohash_query";
 const char* t2 = "envoy.downstream_cx_length_ms:72|ms";
 const char* t2n = "envoy.downstream_cx_length_ms";
 
+const char* t3 = "foo:12|ms|@0.2";
+const char* t3n = "foo";
+
 static void print_callback(void* data, const char* key, const char* line, int len) {
 	char* expect = (char*)data;
 	stats_log(" Expect: %s Got: %s \n", expect, line);
@@ -20,14 +23,16 @@ static void print_callback(void* data, const char* key, const char* line, int le
 }
 
 int main(int argc, char** argv) {
-	validate_parsed_result_t t1_res, t2_res;
+	validate_parsed_result_t t1_res, t2_res, t3_res;
 	validate_statsd(t1, strlen(t1), &t1_res);
 	assert(t1_res.type == METRIC_TIMER);
 	validate_statsd(t2, strlen(t2), &t2_res);
 	assert(t2_res.type == METRIC_TIMER);
+	validate_statsd(t3, strlen(t3), &t3_res);
+	assert(t3_res.type == METRIC_TIMER);
 
 	sampler_t *sampler = NULL;
-	sampler_init(&sampler, 10, 10);
+	sampler_init(&sampler, 10, 10, 10);
 	assert(sampler != NULL);
 
 	int r = sampler_consider_timer(sampler, t1n, &t1_res);
@@ -76,18 +81,24 @@ int main(int argc, char** argv) {
 	assert(sampler_is_sampling(sampler, t1n, METRIC_TIMER) == SAMPLER_SAMPLING);
 
 	for (int i = 0; i < 10; i++) {
-		assert(sampler_consider_timer(sampler, t2n, &t2_res) == SAMPLER_NOT_SAMPLING);
+		assert(sampler_consider_timer(sampler, t3n, &t3_res) == SAMPLER_NOT_SAMPLING);
 	}
 
 	/* Load a large number of new sampled samples into the sampler */
 	for (int i = 0; i < 10000; i++) {
-		assert(sampler_consider_timer(sampler, t2n, &t2_res) == SAMPLER_SAMPLING);
+		assert(sampler_consider_timer(sampler, t3n, &t3_res) == SAMPLER_SAMPLING);
 	}
 
-	sampler_flush(sampler, print_callback, "envoy.downstream_cx_length_ms:72|ms@0.001\n");
+	sampler_flush(sampler, print_callback, "foo:12|ms@0.0002\n");
 
-	/* foo should now not be sampling */
-	assert(sampler_is_sampling(sampler, t1n, METRIC_TIMER) == SAMPLER_NOT_SAMPLING);
+	/* foo should now should still be sampling */
+	assert(sampler_is_sampling(sampler, t3n, METRIC_TIMER) == SAMPLER_SAMPLING);
+
+	/* Trigger the time-based flush of the sampler */
+	sampler_update_flags(sampler);
+
+	/* foo should not be sampling */
+	assert(sampler_is_sampling(sampler, t3n, METRIC_TIMER) == SAMPLER_NOT_SAMPLING);
 
 	return 0;
 }

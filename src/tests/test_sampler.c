@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
 	assert(c2_res.type == METRIC_COUNTER);
 
 	sampler_t *sampler = NULL;
-	sampler_init(&sampler, 10, 10);
+	sampler_init(&sampler, 10, 10, 0);
 	assert(sampler != NULL);
 
 	int r = sampler_consider_metric(sampler, c1n, &c1_res);

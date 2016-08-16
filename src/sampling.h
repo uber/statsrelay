@@ -15,7 +15,7 @@ typedef enum {
 typedef void(sampler_flush_cb)(void* data, const char* key, const char* line, int len);
 
 
-int sampler_init(sampler_t** sampler, int threshold, int window);
+int sampler_init(sampler_t** sampler, int threshold, int window, int reservoir_size);
 
 /**
  * Consider a statsd counter for sampling - based on its name and validation
