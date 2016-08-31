@@ -1,4 +1,4 @@
-name: statsrelay
+name: statsrelay-private
 description: A thing for all the stats relaying
 repository: git@github.com:lyft/statsrelay-private.git
 containers:
