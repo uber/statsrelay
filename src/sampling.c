@@ -81,7 +81,7 @@ static int sampler_update_callback(void* _s, const char* key, void* _value) {
 	} else if (bucket->sampling && bucket->last_window_count <= sampler->threshold) {
 		bucket->sampling = false;
 		bucket->reservoir_index = 0;
-		stats_log("stopped %s sampling '%s'",
+		stats_debug_log("stopped %s sampling '%s'",
 				  bucket->type == METRIC_COUNTER ? "counter": "timer",
 				  key);
 	}
@@ -186,7 +186,7 @@ sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, val
 
 		/* Circuit break and enable sampling mode */
 		if (!bucket->sampling && bucket->last_window_count > sampler->threshold) {
-			stats_log("started timer sampling '%s'", name);
+			stats_debug_log("started timer sampling '%s'", name);
 			bucket->sampling = true;
 		}
 
@@ -242,7 +242,7 @@ sampling_result sampler_consider_metric(sampler_t* sampler, const char* name, va
 
 		/* Circuit break and enable sampling mode */
 		if (!bucket->sampling && bucket->last_window_count > sampler->threshold) {
-			stats_log("started sampling '%s'", name);
+			stats_debug_log("started sampling '%s'", name);
 			bucket->sampling = true;
 		}
 
