@@ -39,6 +39,10 @@ int buffer_newsize(buffer_t *b, size_t newsize);
 // Advances head
 int buffer_consume(buffer_t *, size_t);
 
+// Advance the head until the buffer is empty or token has been matched
+// Notes: slow
+int buffer_consume_until(buffer_t *b, char token);
+
 // Advances tail
 int buffer_produced(buffer_t *, size_t);
 

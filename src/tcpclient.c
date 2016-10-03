@@ -182,6 +182,13 @@ static void tcpclient_write_event(struct ev_loop *loop, struct ev_io *watcher, i
 			client->last_error = time(NULL);
 			tcpclient_set_state(client, STATE_BACKOFF);
 			close(client->sd);
+			/* consume the rest of any line at the buffer head to avoid sending truncated lines
+			   when re-connecting..
+
+			   This is largely a hack as tcpclient is unaware of the underlying protocol framing
+			   and can't handle errant conditions on a frame by frame basis.
+			*/
+			buffer_consume_until(sendq, '\n');
 			client->callback_error(client, EVENT_ERROR, client->callback_context, NULL, 0);
 			return;
 		} else {

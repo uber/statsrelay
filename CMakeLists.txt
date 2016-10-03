@@ -79,6 +79,10 @@ add_executable(test_sampler ${SOURCE_FILES} src/tests/test_sampler.c)
 target_link_libraries(test_sampler ev pcre jansson)
 add_test(NAME test_sampler COMMAND test_sampler)
 
+add_executable(test_buffer ${SOURCE_FILES} src/tests/test_buffer.c)
+target_link_libraries(test_buffer ev pcre jansson)
+add_test(NAME test_buffer COMMAND test_buffer)
+
 add_executable(test_timer_sampler ${SOURCE_FILES} src/tests/test_timer_sampler.c)
 target_link_libraries(test_timer_sampler ev pcre jansson)
 add_test(NAME test_timer_sampler COMMAND test_timer_sampler)

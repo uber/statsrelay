@@ -95,6 +95,16 @@ int buffer_consume(buffer_t *b, size_t amt)
 	return 0;
 }
 
+int buffer_consume_until(buffer_t *b, char token)
+{
+	for (;;) {
+		char* at_head = buffer_head(b);
+		int c = buffer_consume(b, 1);
+		if (at_head[0] == token || c == -1)
+			break;
+	}
+}
+
 int buffer_produced(buffer_t *b, size_t amt)
 {
 	if ((b->tail + amt) - b->ptr > b->size)
