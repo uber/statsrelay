@@ -15,7 +15,11 @@ struct sampler {
 	int threshold;
 	int window;
 	int reservoir_size;
+#ifdef __APPLE__
+	unsigned short randbuf[3];
+#else
 	struct drand48_data randbuf;
+#endif
 	hashmap *map;
 };
 
@@ -66,7 +70,15 @@ int sampler_init(sampler_t** sampler, int threshold, int window, int reservoir_s
 	sam->threshold = threshold;
 	sam->window = window;
 	sam->reservoir_size = reservoir_size;
+
+#ifdef __APPLE__
+	time_t t = time(NULL);
+	sam->randbuf[0] = t & 0xFFFF;
+	sam->randbuf[1] = (t >> 16) & 0xFFFF;
+	sam->randbuf[2] = (t >> 32) & 0xFFFF;
+#else
 	srand48_r(time(NULL), &sam->randbuf);
+#endif
 
 	*sampler = sam;
 	return 0;
@@ -197,8 +209,11 @@ sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, val
 				bucket->reservoir[bucket->reservoir_index++] = value;
 			} else {
 				long int i, k;
+#ifdef __APPLE__
+				i = nrand48(sampler->randbuf);
+#else
 				lrand48_r(&sampler->randbuf, &i);
-
+#endif
 				k = i % (bucket->last_window_count);
 
 				if (k < sampler_threshold(sampler)) {
