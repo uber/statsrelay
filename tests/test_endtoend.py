@@ -56,6 +56,11 @@ class TestCase(unittest.TestCase):
         bytes_read = fd.recv(size)
         self.assertIn(subset, bytes_read)
 
+    def check_list_in_recv(self, fd, subset=list(), size=512):
+        bytes_read = fd.recv(size)
+        for line in subset:
+            self.assertIn(line, bytes_read)
+
     def recv_status(self, fd):
         return fd.recv(65536)
 
@@ -208,22 +213,44 @@ class StatsdTestCase(TestCase):
             fd, addr = self.statsd_listener.accept()
             sender = self.connect('tcp', self.bind_statsd_port)
             for i in range(0, 5):
-                sender.sendall('test.srv.req:1|ms\n')
-                expected = 'test-1.test.srv.req.suffix:1|ms\n'
+                sender.sendall('test.srv.req:1.0|ms\n')
+                expected = 'test-1.test.srv.req.suffix:1.0|ms\n'
                 self.check_recv(fd, expected, len(expected))
 
             # We should now be in sampling mode
             for i in range(0, 200):
-                sender.sendall('test.srv.req:1|ms\n')
+                sender.sendall('test.srv.req:1|ms|@0.2\n')
 
             time.sleep(4.0)
-            self.check_recv_in(fd, 'test-1.test.srv.req.suffix:1|ms@0.025\n')
 
-            # We should now be in sampling mode
+            # should have flushed the upper and lower values
+            samples = [
+                'test-1.test.srv.req.suffix:1|ms@0.00505051\n',
+                'test-1.test.srv.req.suffix:1|ms@0.2\n',
+            ]
+
+            self.check_list_in_recv(fd, samples, 1024)
+
+
+            #  We should now be in sampling mode
+            for i in range(0, 200):
+                sender.sendall('test.srv.req:%s|ms|@1.0\n' % str(i))
+
+            time.sleep(5.0)
+
+            samples = [
+                'test-1.test.srv.req.suffix:199|ms@1\n',
+                'test-1.test.srv.req.suffix:0|ms@1\n',
+            ]
+
+            # Ensure lower and upper timer values are being flushed.
+            self.check_list_in_recv(fd, samples, 1024)
+
+            # We should now be in non sampling mode
             for i in range(0, 100):
-                sender.sendall('test.srv.req:1|ms\n')
+                sender.sendall('test.srv.req:1.0|ms\n')
 
-            self.check_recv_in(fd, 'test-1.test.srv.req.suffix:1|ms@0.05\n')
+            self.check_recv_in(fd, 'test-1.test.srv.req.suffix:1.0|ms\n')
 
             sender.sendall('status\n')
             status = sender.recv(65536)
@@ -240,10 +267,8 @@ class StatsdTestCase(TestCase):
                 backends[backend][key] = int(value)
 
             key = '127.0.0.1:%d:tcp' % (self.statsd_listener.getsockname()[1],)
-            self.assertEqual(backends[key]['relayed_lines'], 15)
+            self.assertEqual(backends[key]['relayed_lines'], 24)
             self.assertEqual(backends[key]['dropped_lines'], 0)
-            self.assertEqual(backends[key]['bytes_sent'], 535)
-            self.assertEqual(backends[key]['bytes_queued'], 325)
 
     def test_tcp_with_ingress_blacklist(self):
         with self.generate_config('tcp', suffix="-blacklist.json") as config_path:

@@ -18,8 +18,20 @@ const char* t3n = "foo";
 
 static void print_callback(void* data, const char* key, const char* line, int len) {
 	char* expect = (char*)data;
-	stats_log(" Expect: %s Got: %s \n", expect, line);
-	assert(strcmp(line, expect) == 0);
+	char* buffer = (char*)malloc(strlen(line) * sizeof(char) + 1);
+
+	strcpy(buffer, line);
+	buffer[strlen(line)] = '\0';
+
+	stats_log("Expect: %s Got: %s\n", expect, line);
+	/**
+	 * Since we flush upper and lower values
+	 * on every flush, while sampling
+	 * we need to check for both values
+	 */
+	buffer[strcspn(buffer, "\n")] = 0;
+	assert(strstr(expect, buffer) != NULL);
+	free(buffer);
 }
 
 int main(int argc, char** argv) {
@@ -52,13 +64,13 @@ int main(int argc, char** argv) {
 	/* Feed another value, make sure we are now in sampling mode */
 	assert(sampler_consider_timer(sampler, t1n, &t1_res) == SAMPLER_SAMPLING);
 
-	/* Feed t2, to check that its not sampled */
+	 // Feed t2, to check that its not sampled 
 	assert(sampler_consider_metric(sampler, t2n, &t2_res) == SAMPLER_NOT_SAMPLING);
 
 	/* Feed another value, make sure we are now in sampling mode */
 	assert(sampler_consider_timer(sampler, t1n, &t1_res) == SAMPLER_SAMPLING);
 
-	sampler_flush(sampler, print_callback, "differing_geohash_query:77923.2|ms@1\n");
+	sampler_flush(sampler, print_callback, "differing_geohash_query:77923.2|ms@1.0\n");
 
 	/* This update should not sampled */
 	assert(sampler_consider_timer(sampler, t1n, &t1_res) == SAMPLER_NOT_SAMPLING);
@@ -75,7 +87,7 @@ int main(int argc, char** argv) {
 		assert(sampler_consider_timer(sampler, t1n, &t1_res) == SAMPLER_SAMPLING);
 	}
 
-	sampler_flush(sampler, print_callback, "differing_geohash_query:77923.2|ms@0.001\n");
+	sampler_flush(sampler, print_callback, "differing_geohash_query:77923.2|ms@1.0\ndiffering_geohash_query:77923.2|ms@0.0010002\n");
 
 	/* foo should still be sampling (it does so across two periods) - lets check */
 	assert(sampler_is_sampling(sampler, t1n, METRIC_TIMER) == SAMPLER_SAMPLING);
@@ -89,7 +101,7 @@ int main(int argc, char** argv) {
 		assert(sampler_consider_timer(sampler, t3n, &t3_res) == SAMPLER_SAMPLING);
 	}
 
-	sampler_flush(sampler, print_callback, "foo:12|ms@0.0002\n");
+	sampler_flush(sampler, print_callback, "foo:12|ms@0.2\nfoo:12|ms@0.00020004\n");
 
 	/* foo should now should still be sampling */
 	assert(sampler_is_sampling(sampler, t3n, METRIC_TIMER) == SAMPLER_SAMPLING);

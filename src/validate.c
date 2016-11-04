@@ -43,7 +43,7 @@ int validate_statsd(const char *line, size_t len, validate_parsed_result_t* resu
 
 	c = end[0];
 	end[0] = '\0';
-	result->presampling_value = 1; /* Default pre-sampling to 1.0 */
+	result->presampling_value = 1.0; /* Default pre-sampling to 1.0 */
 	result->value = strtod(start, &err);
 	if ((result->value == 0.0) && (err == start)) {
 		stats_log("validate: Invalid line \"%.*s\" unable to parse value as double", len, line);
