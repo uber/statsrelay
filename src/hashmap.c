@@ -382,4 +382,3 @@ int hashmap_iter(hashmap *map, hashmap_callback cb, void *data) {
 	}
 	return should_break;
 }
-

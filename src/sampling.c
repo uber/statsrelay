@@ -1,3 +1,4 @@
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -55,6 +56,28 @@ struct sample_bucket {
 	 * Index of recent item in the reservoir
 	 */
 	int reservoir_index;
+
+	/**
+	 * Upper value of timer seen in the sampling period
+	 */
+	 double upper;
+
+	/**
+	 * Lower value of timer seen in the sampling period
+	 */
+	 double lower;
+
+	 /**
+	  * retain the incoming pre applied sample rate to relay to statsite
+	  * for the current_min
+	  */
+	 double lower_sample_rate;
+
+	 /**
+	  * retain the incoming pre applied sample rate to relay to statsite
+	  * for the current_max
+	  */
+	 double upper_sample_rate;
 
 	/**
 	 * Maintain a reservoir of 'threshold' timer values
@@ -123,6 +146,22 @@ static int sampler_flush_callback(void* _s, const char* key, void* _value) {
 				num_samples++;
 			}
 		}
+
+		// Flush the max and min for the well-being of timer.upper and timer.lower respectively
+		if (bucket->upper > DBL_MIN) {
+			len = sprintf(line_buffer, "%s:%g|ms@%g\n", key, bucket->upper, bucket->upper_sample_rate);
+			len -= 1;
+			flush_data->cb(flush_data->data, key, line_buffer, len);
+			bucket->upper = DBL_MIN;
+		}
+
+		if (bucket->lower < DBL_MAX) {
+			len = sprintf(line_buffer, "%s:%g|ms@%g\n", key, bucket->lower, bucket->lower_sample_rate);
+			len -= 1;
+			flush_data->cb(flush_data->data, key, line_buffer, len);
+			bucket->lower = DBL_MAX;
+		}
+
 		double sample_rate = (double)(1.0 * num_samples) / bucket->count;
 		for (int j = 0; j < flush_data->sampler->threshold; j++) {
 			if (!isnan(bucket->reservoir[j])) {
@@ -185,6 +224,8 @@ sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, val
 		bucket->reservoir_index = 0;
 		bucket->last_window_count = 0;
 		bucket->type = parsed->type;
+		bucket->upper = DBL_MIN;
+		bucket->lower = DBL_MAX;
 		bucket->sum = 0;
 		bucket->count = 0;
 
@@ -204,6 +245,44 @@ sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, val
 
 		if (bucket->sampling) {
 			double value = parsed->value;
+
+			/**
+			 * update the upper and lower
+			 * timer values.
+			 */
+			if (value > bucket->upper) {
+				// keep the sampling rate in sync with the value
+				bucket->upper_sample_rate = parsed->presampling_value;
+
+				if (bucket->upper != DBL_MIN) {
+					// add previous_max to reservoir
+					// update current_max
+					double old_max = bucket->upper;
+					bucket->upper = value;
+					value = old_max;
+				} else {
+					// dont include it in the reservoir
+					bucket->upper = value;
+					return SAMPLER_SAMPLING;
+				}
+			}
+
+			if (value < bucket->lower) {
+				// keep the sampling rate in sync with the value
+				bucket->lower_sample_rate = parsed->presampling_value;
+
+				if (bucket->lower != DBL_MAX) {
+					// add previous_min to reservoir
+					// update current_min
+					double old_min = bucket->lower;
+					bucket->lower = value;
+					value = old_min;
+				} else {
+					// dont include it in the reservoir
+					bucket->lower = value;
+					return SAMPLER_SAMPLING;
+				}
+			}
 
 			if (bucket->reservoir_index < sampler_threshold(sampler)) {
 				bucket->reservoir[bucket->reservoir_index++] = value;
