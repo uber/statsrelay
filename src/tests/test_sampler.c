@@ -31,41 +31,41 @@ int main(int argc, char** argv) {
 	sampler_init(&sampler, 10, 10, 0);
 	assert(sampler != NULL);
 
-	int r = sampler_consider_metric(sampler, c1n, &c1_res);
+	int r = sampler_consider_counter(sampler, c1n, &c1_res);
 	assert(r == SAMPLER_NOT_SAMPLING);
 
 	/* Load a large number of samples into the sampler */
 	for (int i = 0; i < 9; i++) {
-		assert(sampler_consider_metric(sampler, c1n, &c1_res) == SAMPLER_NOT_SAMPLING);
+		assert(sampler_consider_counter(sampler, c1n, &c1_res) == SAMPLER_NOT_SAMPLING);
 	}
 
 	/* This 10th update should be sampled */
-	assert(sampler_consider_metric(sampler, c1n, &c1_res) == SAMPLER_SAMPLING);
+	assert(sampler_consider_counter(sampler, c1n, &c1_res) == SAMPLER_SAMPLING);
 
 	/* Trigger the time-based flush of the sampler */
 	sampler_update_flags(sampler);
 
 	/* Feed another value, make sure we are now in sampling mode */
-	assert(sampler_consider_metric(sampler, c1n, &c1_res) == SAMPLER_SAMPLING);
+	assert(sampler_consider_counter(sampler, c1n, &c1_res) == SAMPLER_SAMPLING);
 
 	/* Feed c2, to check that its not sampled */
-	assert(sampler_consider_metric(sampler, c2n, &c2_res) == SAMPLER_NOT_SAMPLING);
+	assert(sampler_consider_counter(sampler, c2n, &c2_res) == SAMPLER_NOT_SAMPLING);
 
 	sampler_flush(sampler, print_callback, "foo:1|c@0.5\n");
 
 	/* This update should not sampled */
-	assert(sampler_consider_metric(sampler, c1n, &c1_res) == SAMPLER_NOT_SAMPLING);
+	assert(sampler_consider_counter(sampler, c1n, &c1_res) == SAMPLER_NOT_SAMPLING);
 
 	sampler_flush(sampler, print_callback, "should not match\n");
 
 	/* Load a large number of samples into the sampler */
 	for (int i = 0; i < 10; i++) {
-		assert(sampler_consider_metric(sampler, c1n, &c1_res) == SAMPLER_NOT_SAMPLING);
+		assert(sampler_consider_counter(sampler, c1n, &c1_res) == SAMPLER_NOT_SAMPLING);
 	}
 
 	/* Load a large number of new sampled samples into the sampler */
 	for (int i = 0; i < 10000; i++) {
-		assert(sampler_consider_metric(sampler, c1n, &c1_res) == SAMPLER_SAMPLING);
+		assert(sampler_consider_counter(sampler, c1n, &c1_res) == SAMPLER_SAMPLING);
 	}
 
 	sampler_flush(sampler, print_callback, "foo:1|c@0.0001\n");
@@ -75,20 +75,20 @@ int main(int argc, char** argv) {
 
 	/* Check with a counter thats not just 1 */
 	for (int i = 0; i < 10; i++) {
-		assert(sampler_consider_metric(sampler, c2n, &c2_res) == SAMPLER_NOT_SAMPLING);
+		assert(sampler_consider_counter(sampler, c2n, &c2_res) == SAMPLER_NOT_SAMPLING);
 	}
 
 	/* This 10th update should be sampled */
-	assert(sampler_consider_metric(sampler, c2n, &c2_res) == SAMPLER_SAMPLING);
+	assert(sampler_consider_counter(sampler, c2n, &c2_res) == SAMPLER_SAMPLING);
 
 	/* This 11th update should be sampled */
-	assert(sampler_consider_metric(sampler, c2n, &c2_res) == SAMPLER_SAMPLING);
+	assert(sampler_consider_counter(sampler, c2n, &c2_res) == SAMPLER_SAMPLING);
 
 	sampler_flush(sampler, print_callback, "bar:2|c@0.5\n");
 
 	/* Load a large number of new sampled samples into the sampler */
 	for (int i = 0; i < 10000; i++) {
-		assert(sampler_consider_metric(sampler, c2n, &c2_res) == SAMPLER_SAMPLING);
+		assert(sampler_consider_counter(sampler, c2n, &c2_res) == SAMPLER_SAMPLING);
 	}
 
 	sampler_flush(sampler, print_callback, "bar:2|c@0.0001\n");
