@@ -742,7 +742,7 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
 		if (group->count_sampler) {
 			sampling_result r = SAMPLER_NOT_SAMPLING;
 			if (parsed_result.type == METRIC_COUNTER) {
-				r = sampler_consider_metric(group->count_sampler, key_buffer, &parsed_result);
+				r = sampler_consider_counter(group->count_sampler, key_buffer, &parsed_result);
 			}
 			if (r == SAMPLER_SAMPLING)
 				continue;

@@ -314,7 +314,7 @@ sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, val
 	return SAMPLER_NOT_SAMPLING;
 }
 
-sampling_result sampler_consider_metric(sampler_t* sampler, const char* name, validate_parsed_result_t* parsed) {
+sampling_result sampler_consider_counter(sampler_t* sampler, const char* name, validate_parsed_result_t* parsed) {
 	// safety check, also checked for in stats.c
 	if (parsed->type != METRIC_COUNTER) {
 		return SAMPLER_NOT_SAMPLING;

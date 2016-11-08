@@ -21,7 +21,7 @@ int sampler_init(sampler_t** sampler, int threshold, int window, int reservoir_s
  * Consider a statsd counter for sampling - based on its name and validation
  * parsed result which includes its data object.
  */
-sampling_result sampler_consider_metric(sampler_t* sampler, const char* name, validate_parsed_result_t*);
+sampling_result sampler_consider_counter(sampler_t* sampler, const char* name, validate_parsed_result_t*);
 
 /**
  * Consider a statsd timer for sampling - based on its name and validation

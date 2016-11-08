@@ -64,8 +64,8 @@ int main(int argc, char** argv) {
 	/* Feed another value, make sure we are now in sampling mode */
 	assert(sampler_consider_timer(sampler, t1n, &t1_res) == SAMPLER_SAMPLING);
 
-	 // Feed t2, to check that its not sampled 
-	assert(sampler_consider_metric(sampler, t2n, &t2_res) == SAMPLER_NOT_SAMPLING);
+	/* Feed t2, to check that its not sampled */
+	assert(sampler_consider_timer(sampler, t2n, &t2_res) == SAMPLER_NOT_SAMPLING);
 
 	/* Feed another value, make sure we are now in sampling mode */
 	assert(sampler_consider_timer(sampler, t1n, &t1_res) == SAMPLER_SAMPLING);
