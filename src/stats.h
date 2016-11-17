@@ -23,6 +23,11 @@
 #define STATSD_MONITORING_FLUSH_INTERVAL 1
 
 /**
+ * Opaque callback reference
+ */
+typedef void (*s_handler)(struct ev_loop *loop, struct ev_timer* timer,  int events);
+
+/**
  * Static stack space for a single statsd key value
  */
 #define KEY_BUFFER 8192

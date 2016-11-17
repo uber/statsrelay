@@ -57,6 +57,17 @@ struct additional_config {
 	int reservoir_size;
 
 	/**
+	 * hm_key_expiration_frequency_in_seconds: frequency with which purging of expired items in hashmap
+	 * happens (in seconds) (currently only applies to timer sampling hashmap)
+	 */
+	int hm_key_expiration_frequency_in_seconds;
+
+	/**
+	 * hm_key_ttl_in_seconds: TTL of hashmap key in seconds (currently only applies to timer sampling hashmap)
+	 */
+	int hm_key_ttl_in_seconds;
+
+	/**
 	 * A list of host:port combos where to forward traffic, consistently hashed.
 	 */
 	list_t ring;

@@ -67,6 +67,10 @@ add_executable(test_hashlib ${SOURCE_FILES} src/tests/test_hashlib.c)
 target_link_libraries(test_hashlib ev pcre jansson)
 add_test(NAME test_hashlib COMMAND test_hashlib)
 
+add_executable(test_hashmap ${SOURCE_FILES} src/tests/test_hashmap.c)
+target_link_libraries(test_hashmap ev pcre jansson)
+add_test(NAME test_hashmap COMMAND test_hashmap)
+
 add_executable(test_hashring ${SOURCE_FILES} src/tests/test_hashring.c)
 target_link_libraries(test_hashring ev pcre jansson)
 add_test(NAME test_hashring COMMAND test_hashring WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/src/tests)

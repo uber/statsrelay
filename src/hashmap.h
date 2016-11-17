@@ -1,11 +1,13 @@
 #ifndef HASHMAP_H
 #define HASHMAP_H
 
+#include "./log.h"
+
 /**
  * Opaque hashmap reference
  */
 typedef struct hashmap hashmap;
-typedef int(*hashmap_callback)(void *data, const char *key, void *value);
+typedef int(*hashmap_callback)(void *data, const char *key, void *value, void *metadata);
 
 /**
  * Creates a new hashmap and allocates space for it.
@@ -41,9 +43,10 @@ int hashmap_get(hashmap *map, const char *key, void **value);
  * @notes This method is not thread safe.
  * @arg key_len The key length
  * @arg value The value to set.
+ * @arg metadata
  * 0 if updated, 1 if added.
  */
-int hashmap_put(hashmap *map, const char *key, void *value);
+int hashmap_put(hashmap *map, const char *key, void *value, void *metadata);
 
 /**
  * Deletes a key/value pair.

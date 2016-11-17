@@ -10,6 +10,7 @@
 typedef struct hashmap_entry {
 	char *key;
 	void *value;
+	void *metadata;
 	struct hashmap_entry *next; // Support linking.
 } hashmap_entry;
 
@@ -17,7 +18,7 @@ struct hashmap {
 	int count;      // Number of entries
 	int table_size; // Size of table in nodes
 	int max_size;   // Max size before we resize
-	hashmap_entry *table; // Pointer to an arry of hashmap_entry objects
+	hashmap_entry *table; // Pointer to an array of hashmap_entry objects
 };
 
 /**
@@ -139,12 +140,12 @@ int hashmap_get(hashmap *map, const char *key, void **value) {
  * @arg key The key to insert
  * @arg key_len The length of the key
  * @arg value The value to associate
+ * @arg metadata
  * @arg should_cmp Should keys be compared to existing ones.
- * @arg should_dup Should duplicate keys
  * @return 1 if the key is new, 0 if updated.
  */
 static int hashmap_insert_table(hashmap_entry *table, int table_size, char *key, int key_len,
-				void *value, int should_cmp) {
+				void *value, void *metadata, int should_cmp) {
 	// Compute the hash value of the key
 	uint32_t out = murmur3_32(key, key_len, 0);
 
@@ -173,20 +174,20 @@ static int hashmap_insert_table(hashmap_entry *table, int table_size, char *key,
 	if (entry && last_entry == NULL) {
 		entry->key = (key);
 		entry->value = value;
-
+		entry->metadata = metadata;
 		// We have a last value, need to link against it with our new
 		// value.
 	} else if (last_entry) {
 		entry = calloc(1, sizeof(hashmap_entry));
 		entry->key = (key);
 		entry->value = value;
+		entry->metadata = metadata;
 		last_entry->next = entry;
 	} else {
 		return -1;
 	}
 	return 1;
 }
-
 
 /**
  * Internal method to double the size of a hashmap
@@ -214,7 +215,7 @@ static void hashmap_double_size(hashmap *map) {
 			// Do not compare keys or duplicate since we are just doubling our
 			// size, and we have unique keys and duplicates already.
 			hashmap_insert_table(new_table, new_size, old->key, strlen(old->key),
-					     old->value, 0);
+					     old->value, old->metadata, 0);
 
 			// The initial entry is in the table
 			// and we should not free that one.
@@ -241,20 +242,21 @@ static void hashmap_double_size(hashmap *map) {
  * @notes This method is not thread safe.
  * @arg key_len The key length
  * @arg value The value to set.
+ * @arg metadata arbitrary information
  * 0 if updated, 1 if added.
  */
-int hashmap_put(hashmap *map, const char *key, void *value) {
+int hashmap_put(hashmap *map, const char *key, void *value, void *metadata) {
 	// Check if we need to double the size
 	if (map->count + 1 > map->max_size) {
 		// Doubles the size of the hashmap, re-try the insert
 		hashmap_double_size(map);
-		return hashmap_put(map, key, value);
+		return hashmap_put(map, key, value, metadata);
 	}
 
 	char* insert_key = strdup(key);
 
 	// Insert into the map, comparing keys and duplicating keys
-	int new = hashmap_insert_table(map->table, map->table_size, insert_key, strlen(key), value, 1);
+	int new = hashmap_insert_table(map->table, map->table_size, insert_key, strlen(key), value, metadata, 1);
 	if (new > 0) {
 		map->count += 1;
 	} else {
@@ -376,7 +378,7 @@ int hashmap_iter(hashmap *map, hashmap_callback cb, void *data) {
 		entry = map->table + i;
 		while (entry && entry->key && !should_break) {
 			// Invoke the callback
-			should_break = cb(data, entry->key, entry->value);
+			should_break = cb(data, entry->key, entry->value, entry->metadata);
 			entry = entry->next;
 		}
 	}

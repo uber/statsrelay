@@ -28,8 +28,12 @@ int main(int argc, char** argv) {
 	assert(c2_res.type == METRIC_COUNTER);
 
 	sampler_t *sampler = NULL;
-	sampler_init(&sampler, 10, 10, 0);
+	sampler_init(&sampler, 10, 10, 0, -1, -1);
 	assert(sampler != NULL);
+
+    // the expiry timer watcher must not be initialized
+	assert(is_expiry_watcher_active(sampler) == false);
+	assert(is_expiry_watcher_pending(sampler) == false);
 
 	int r = sampler_consider_counter(sampler, c1n, &c1_res);
 	assert(r == SAMPLER_NOT_SAMPLING);
