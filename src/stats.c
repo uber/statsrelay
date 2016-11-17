@@ -79,11 +79,10 @@ static stats_backend_t *find_backend(stats_backend_t **backend_lists, size_t num
 	return NULL;
 }
 
-typedef void (*s_handler)(struct ev_loop *loop, struct ev_timer* timer,  int events);
-
-static void initialize_samplers(sampler_t **sampler, ev_timer *watcher, stats_backend_group_t *group,
-			stats_server_t *server, int threshold, int window, int reservoir_size, s_handler handler) {
-	int res = sampler_init(sampler, threshold, window, reservoir_size);
+static void initialize_sampler(sampler_t **sampler, ev_timer *watcher, stats_backend_group_t *group,
+			stats_server_t *server, int threshold, int window, int reservoir_size,
+			int hm_expiration_frequency, int hm_ttl, s_handler handler) {
+	int res = sampler_init(sampler, threshold, window, reservoir_size, hm_expiration_frequency, hm_ttl);
 	if (res) {
 		stats_error_log("sampler: loading failed with error %d", res);
 	}
@@ -506,13 +505,18 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 
 
 			if (dupl->sampling_threshold > 0) {
-				initialize_samplers(&group->count_sampler, &group->counter_sampling_watcher, group, server,
-						dupl->sampling_threshold, dupl->sampling_window, dupl->reservoir_size, sampling_handler);
+				// Counter sampler, doesn't have hashmap expired key redemption
+				// pass in a desired ttl of -1 (never expire!).
+				initialize_sampler(&group->count_sampler, &group->counter_sampling_watcher, group, server,
+						dupl->sampling_threshold, dupl->sampling_window, dupl->reservoir_size, -1, -1, sampling_handler);
 			}
 
 			if (dupl->timer_sampling_threshold > 0) {
-				initialize_samplers(&group->timer_sampler, &group->timer_sampling_watcher, group, server,
-						dupl->timer_sampling_threshold, dupl->timer_sampling_window, dupl->reservoir_size, timer_sampling_handler);
+				// Timer sampler, will include a passive expiring map by default.
+				initialize_sampler(&group->timer_sampler, &group->timer_sampling_watcher, group, server,
+						dupl->timer_sampling_threshold, dupl->timer_sampling_window, dupl->reservoir_size,
+						dupl->hm_key_expiration_frequency_in_seconds, dupl->hm_key_ttl_in_seconds,
+						timer_sampling_handler);
 			}
 
 			if (dupl->ingress_blacklist != NULL) {
@@ -1007,14 +1011,13 @@ udp_recv_err:
 
 
 void stats_server_destroy(stats_server_t *server) {
-	ev_timer_stop(server->loop, &server->stats_flusher);
-
 	for (int i = 0; i < server->rings->size; i++) {
 		stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
 		group_destroy(server->loop, group);
 	}
 
 	for (int i = 0; i < server->monitor_ring->size; i++) {
+        ev_timer_stop(server->loop, &server->stats_flusher);
 		stats_backend_group_t* group = (stats_backend_group_t*)server->monitor_ring->data[i];
 		group_destroy(server->loop, group);
 	}

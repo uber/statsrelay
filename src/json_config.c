@@ -111,6 +111,11 @@ static int parse_additional_config(const json_t* additional_config, struct proto
 		aconfig->timer_sampling_window = get_int_orelse(additional_config, "timer_sampling_window", -1);
 		aconfig->reservoir_size = get_int_orelse(additional_config, "reservoir_size", 100);
 
+		// run purge timer at hourly rate (default)
+		aconfig->hm_key_expiration_frequency_in_seconds = get_int_orelse(additional_config, "hm_key_expiration_frequency", 3600);
+		// purge entries older than a day! (default)
+		aconfig->hm_key_ttl_in_seconds = get_int_orelse(additional_config, "hm_key_ttl", 86400);
+
 		if ((aconfig->sampling_threshold > 0 || aconfig->timer_sampling_threshold > 0) && !config->enable_validation) {
 			stats_error_log("enabling sampling requires turning on validation of the statsd packet format. sorry.");
 			return -1;
