@@ -22,18 +22,18 @@
 #define TCPCLIENT_NAME_LEN 256
 
 enum tcpclient_event {
-	EVENT_CONNECTED,
-	EVENT_SENT,
-	EVENT_RECV,
-	EVENT_ERROR
+    EVENT_CONNECTED,
+    EVENT_SENT,
+    EVENT_RECV,
+    EVENT_ERROR
 };
 
 enum tcpclient_state {
-	STATE_INIT = 0,
-	STATE_CONNECTING,
-	STATE_BACKOFF,
-	STATE_CONNECTED,
-	STATE_TERMINATED
+    STATE_INIT = 0,
+    STATE_CONNECTING,
+    STATE_BACKOFF,
+    STATE_CONNECTED,
+    STATE_TERMINATED
 };
 
 // data has different meaning depending on the event...
@@ -44,59 +44,59 @@ enum tcpclient_state {
 typedef int (*tcpclient_callback)(void *, enum tcpclient_event, void *, char *, size_t);
 
 typedef struct io_watcher_t {
-	ev_io watcher;
-	bool started;
+    ev_io watcher;
+    bool started;
 } io_watcher_t;
 
 typedef struct tcpclient_t {
-	tcpclient_callback callback_connect;
-	tcpclient_callback callback_sent;
-	tcpclient_callback callback_recv;
-	tcpclient_callback callback_error;
-	void *callback_context;
+    tcpclient_callback callback_connect;
+    tcpclient_callback callback_sent;
+    tcpclient_callback callback_recv;
+    tcpclient_callback callback_error;
+    void *callback_context;
 
-	struct ev_loop *loop;
-	ev_timer timeout_watcher;
-	io_watcher_t connect_watcher;
-	io_watcher_t read_watcher;
-	io_watcher_t write_watcher;
+    struct ev_loop *loop;
+    ev_timer timeout_watcher;
+    io_watcher_t connect_watcher;
+    io_watcher_t read_watcher;
+    io_watcher_t write_watcher;
 
-	char name[TCPCLIENT_NAME_LEN];
+    char name[TCPCLIENT_NAME_LEN];
 
-	struct addrinfo *addr;
-	char* host;
-	char* port;
-	char* protocol;
+    struct addrinfo *addr;
+    char* host;
+    char* port;
+    char* protocol;
 
-	buffer_t send_queue;
-	enum tcpclient_state state;
-	time_t last_error;
-	int retry_count;
-	int failing;
-	int sd;
-	int socktype;
+    buffer_t send_queue;
+    enum tcpclient_state state;
+    time_t last_error;
+    int retry_count;
+    int failing;
+    int sd;
+    int socktype;
 
-	struct proto_config *config;
+    struct proto_config *config;
 } tcpclient_t;
 
 int tcpclient_init(tcpclient_t *client,
-		struct ev_loop *loop,
-		void *callback_connect,
-		const char* host,
-		const char* port,
-		const char* protocol,
-		struct proto_config *config);
+        struct ev_loop *loop,
+        void *callback_connect,
+        const char* host,
+        const char* port,
+        const char* protocol,
+        struct proto_config *config);
 
 void tcpclient_set_sent_callback(tcpclient_t *client,
-		tcpclient_callback callback);
+        tcpclient_callback callback);
 
 int tcpclient_connect(tcpclient_t *client);
 
 void tcpclient_disconnect(tcpclient_t *client);
 
 int tcpclient_sendall(tcpclient_t *client,
-		const char *buf,
-		size_t len);
+        const char *buf,
+        size_t len);
 
 void tcpclient_destroy(tcpclient_t *client);
 #endif  // STATSRELAY_TCPCLIENT_H

@@ -10,8 +10,8 @@
 typedef struct sampler sampler_t;
 
 typedef enum {
-	SAMPLER_NOT_SAMPLING = 0,
-	SAMPLER_SAMPLING = 1
+    SAMPLER_NOT_SAMPLING = 0,
+    SAMPLER_SAMPLING = 1
 } sampling_result;
 
 typedef void(sampler_flush_cb)(void* data, const char* key, const char* line, int len);

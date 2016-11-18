@@ -12,9 +12,9 @@ typedef struct udpserver_t udpserver_t;
 
 udpserver_t *udpserver_create(struct ev_loop *loop, void *data);
 int udpserver_bind(udpserver_t *server,
-		const char *address_and_port,
-		bool rebind,
-		int (*cb_recv)(int, void *));
+        const char *address_and_port,
+        bool rebind,
+        int (*cb_recv)(int, void *));
 void udpserver_destroy(udpserver_t *server);
 
 void udpserver_stop_accepting_connections(udpserver_t *server);
