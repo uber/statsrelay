@@ -4,9 +4,9 @@
 #include <stdlib.h>
 
 struct statsrelay_list {
-	size_t allocated_size;
-	size_t size;
-	void **data;
+    size_t allocated_size;
+    size_t size;
+    void **data;
 };
 
 typedef struct statsrelay_list* list_t;

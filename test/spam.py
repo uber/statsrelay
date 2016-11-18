@@ -34,7 +34,7 @@ if __name__ == '__main__':
             x += 1
             print x, count
             stat = word + ':1|c\n'
-	    print("sending {0}".format(stat));
+            print("sending {0}".format(stat));
             sock.sendall(stat)
             if count and x >= count:
                 break_out = True

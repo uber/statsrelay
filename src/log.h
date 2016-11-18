@@ -5,10 +5,10 @@
 #include <stdbool.h>
 
 enum statsrelay_log_level {
-	STATSRELAY_LOG_DEBUG   = 10,
-	STATSRELAY_LOG_INFO    = 20,
-	STATSRELAY_LOG_WARN    = 30,
-	STATSRELAY_LOG_ERROR   = 40
+    STATSRELAY_LOG_DEBUG   = 10,
+    STATSRELAY_LOG_INFO    = 20,
+    STATSRELAY_LOG_WARN    = 30,
+    STATSRELAY_LOG_ERROR   = 40
 };
 
 // set verbose logging, i.e. send logs to stderr
