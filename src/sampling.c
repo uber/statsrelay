@@ -20,6 +20,7 @@ struct sampler {
     int threshold;
     int window;
     int reservoir_size;
+    bool timer_flush_min_max;
 #ifdef __APPLE__
     unsigned short randbuf[3];
 #else
@@ -97,7 +98,7 @@ struct sample_bucket {
 
 
 int sampler_init(sampler_t** sampler, int threshold, int window, int reservoir_size,
-                 int hm_expiry_frequency, int hm_ttl) {
+                 bool timer_flush_min_max, int hm_expiry_frequency, int hm_ttl) {
 
     struct sampler *sam = calloc(1, sizeof(struct sampler));
 
@@ -106,6 +107,7 @@ int sampler_init(sampler_t** sampler, int threshold, int window, int reservoir_s
     sam->threshold = threshold;
     sam->window = window;
     sam->reservoir_size = reservoir_size;
+    sam->timer_flush_min_max = timer_flush_min_max;
     sam->base.hm_expiry_frequency = hm_expiry_frequency;
     // save this to pass into hashmap_put
     sam->base.hm_ttl = hm_ttl;
@@ -195,14 +197,15 @@ static int sampler_flush_callback(void* _s, const char* key, void* _value, void*
         }
 
         // Flush the max and min for the well-being of timer.upper and timer.lower respectively
-        if (bucket->upper > DBL_MIN) {
+        // iff, client has explicitly requested a flush of .upper and .lower
+        if (bucket->upper > DBL_MIN && flush_upper_lower(flush_data->sampler)) {
             len = sprintf(line_buffer, "%s:%g|ms@%g\n", key, bucket->upper, bucket->upper_sample_rate);
             len -= 1;
             flush_data->cb(flush_data->data, key, line_buffer, len);
             bucket->upper = DBL_MIN;
         }
 
-        if (bucket->lower < DBL_MAX) {
+        if (bucket->lower < DBL_MAX && flush_upper_lower(flush_data->sampler)) {
             len = sprintf(line_buffer, "%s:%g|ms@%g\n", key, bucket->lower, bucket->lower_sample_rate);
             len -= 1;
             flush_data->cb(flush_data->data, key, line_buffer, len);
@@ -443,4 +446,8 @@ bool is_expiry_watcher_active(sampler_t* sampler) {
 
 bool is_expiry_watcher_pending(sampler_t* sampler) {
     return sampler->base.hm_expiry_frequency != -1 ? ev_is_pending(&sampler->base.map_expiry_timer) : 0;
+}
+
+bool flush_upper_lower(sampler_t* sampler) {
+    return sampler->timer_flush_min_max;
 }

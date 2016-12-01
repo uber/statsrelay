@@ -19,7 +19,7 @@ typedef void(sampler_flush_cb)(void* data, const char* key, const char* line, in
 void expiry_callback_handler(struct ev_loop* , struct ev_timer* , int);
 
 int sampler_init(sampler_t** sampler, int threshold, int window, int reservoir_size,
-	int hm_expiry_frequency, int hm_ttl);
+	bool timer_flush_min_max, int hm_expiry_frequency, int hm_ttl);
 
 /**
  * Registered callback for hashmap stale key expiry.
@@ -86,5 +86,12 @@ bool is_expiry_watcher_pending(sampler_t *sampler);
  * Return the frequency of expiration timer (default -1)
  */
 int sampler_expiration_timer_frequency(sampler_t  *sampler);
+
+/**
+ * Boolean flag that sampler flush callback uses to decide
+ * if the calculated true upper and lower values for a sampled
+ * timer needs flushing
+ */
+bool flush_upper_lower(sampler_t* sampler);
 
 #endif //STATSRELAY_SAMPLING_H

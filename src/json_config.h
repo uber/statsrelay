@@ -51,6 +51,12 @@ struct additional_config {
     int timer_sampling_window;
 
     /**
+     * timer_flush_min_max: If timer sampling has been enabled, we can optionally flush
+     * the true upper and lower values for the timer every sampler flush interval
+     */
+    bool timer_flush_min_max;
+
+    /**
      * reservoir_size: size of the reservoir, number of samples kept in memory for every
      * timer being sampled
      */

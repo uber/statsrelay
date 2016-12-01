@@ -61,6 +61,11 @@ class TestCase(unittest.TestCase):
         for line in subset:
             self.assertIn(line, bytes_read)
 
+    def check_list_not_in_recv(self, fd, subset=list(), size=512):
+        bytes_read = fd.recv(size)
+        for line in subset:
+            self.assertNotIn(line, bytes_read)
+
     def recv_status(self, fd):
         return fd.recv(65536)
 
@@ -231,7 +236,6 @@ class StatsdTestCase(TestCase):
 
             self.check_list_in_recv(fd, samples, 1024)
 
-
             #  We should now be in sampling mode
             for i in range(0, 200):
                 sender.sendall('test.srv.req:%s|ms|@1.0\n' % str(i))
@@ -268,6 +272,48 @@ class StatsdTestCase(TestCase):
 
             key = '127.0.0.1:%d:tcp' % (self.statsd_listener.getsockname()[1],)
             self.assertEqual(backends[key]['relayed_lines'], 24)
+            self.assertEqual(backends[key]['dropped_lines'], 0)
+
+    def test_tcp_with_timer_sampler_no_flush(self):
+        with self.generate_config('tcp', suffix="-sample-no-flush.json") as config_path:
+            self.launch_process(config_path)
+            fd, addr = self.statsd_listener.accept()
+            sender = self.connect('tcp', self.bind_statsd_port)
+            for i in range(0, 5):
+                sender.sendall('test.srv.req:1.0|ms\n')
+                expected = 'test-1.test.srv.req.suffix:1.0|ms\n'
+                self.check_recv(fd, expected, len(expected))
+
+            # We should now be in sampling mode
+            for i in range(0, 200):
+                sender.sendall('test.srv.req:1|ms|@0.2\n')
+
+            time.sleep(4.0)
+
+            # shouldn't have flushed the upper and lower values
+            samples = [
+                'test-1.test.srv.req.suffix:1|ms@0.2\n',
+                'test-1.test.srv.req.suffix:1|ms@0.2\n',
+            ]
+
+            self.check_list_not_in_recv(fd, samples, 1024)
+
+            sender.sendall('status\n')
+            status = sender.recv(65536)
+            sender.close()
+
+            backends = defaultdict(dict)
+            for line in status.split('\n'):
+                if not line:
+                    break
+                if not line.startswith('backend:'):
+                    continue
+                backend, key, valuetype, value = line.split(' ', 3)
+                backend = backend.split(':', 1)[1]
+                backends[backend][key] = int(value)
+
+            key = '127.0.0.1:%d:tcp' % (self.statsd_listener.getsockname()[1],)
+            self.assertEqual(backends[key]['relayed_lines'], 10)
             self.assertEqual(backends[key]['dropped_lines'], 0)
 
     def test_tcp_with_ingress_blacklist(self):

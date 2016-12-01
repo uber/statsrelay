@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
     assert(c2_res.type == METRIC_COUNTER);
 
 	sampler_t *sampler = NULL;
-	sampler_init(&sampler, 10, 10, 0, -1, -1);
+	sampler_init(&sampler, 10, 10, 0, true, -1, -1);
 	assert(sampler != NULL);
 
     // the expiry timer watcher must not be initialized
