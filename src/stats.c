@@ -80,9 +80,11 @@ static stats_backend_t *find_backend(stats_backend_t **backend_lists, size_t num
 }
 
 static void initialize_sampler(sampler_t **sampler, ev_timer *watcher, stats_backend_group_t *group,
-            stats_server_t *server, int threshold, int window, int reservoir_size,
+            stats_server_t *server, int threshold, int window, int reservoir_size, bool timer_flush_min_max,
             int hm_expiration_frequency, int hm_ttl, s_handler handler) {
-    int res = sampler_init(sampler, threshold, window, reservoir_size, hm_expiration_frequency, hm_ttl);
+    int res = sampler_init(sampler, threshold, window, reservoir_size, timer_flush_min_max,
+                        hm_expiration_frequency, hm_ttl);
+
     if (res) {
         stats_error_log("sampler: loading failed with error %d", res);
     }
@@ -508,15 +510,15 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
                 // Counter sampler, doesn't have hashmap expired key redemption
                 // pass in a desired ttl of -1 (never expire!).
                 initialize_sampler(&group->count_sampler, &group->counter_sampling_watcher, group, server,
-                        dupl->sampling_threshold, dupl->sampling_window, dupl->reservoir_size, -1, -1, sampling_handler);
+                        dupl->sampling_threshold, dupl->sampling_window, dupl->reservoir_size, false, -1, -1, sampling_handler);
             }
 
             if (dupl->timer_sampling_threshold > 0) {
                 // Timer sampler, will include a passive expiring map by default.
                 initialize_sampler(&group->timer_sampler, &group->timer_sampling_watcher, group, server,
                         dupl->timer_sampling_threshold, dupl->timer_sampling_window, dupl->reservoir_size,
-                        dupl->hm_key_expiration_frequency_in_seconds, dupl->hm_key_ttl_in_seconds,
-                        timer_sampling_handler);
+                        dupl->timer_flush_min_max, dupl->hm_key_expiration_frequency_in_seconds,
+                        dupl->hm_key_ttl_in_seconds, timer_sampling_handler);
             }
 
             if (dupl->ingress_blacklist != NULL) {

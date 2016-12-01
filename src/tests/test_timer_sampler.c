@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
     assert(t3_res.type == METRIC_TIMER);
 
 	sampler_t *sampler = NULL;
-	sampler_init(&sampler, 10, 10, 10, 10, 10);
+	sampler_init(&sampler, 10, 10, 10, true, 10, 10);
 	assert(sampler != NULL);
 
     int r = sampler_consider_timer(sampler, t1n, &t1_res);

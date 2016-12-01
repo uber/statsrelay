@@ -14,7 +14,7 @@
                 "reservoir_size": 5,
                 "timer_sampling_threshold": 5,
                 "timer_sampling_window": 3,
-                "timer_flush_min_max": true,
+                "timer_flush_min_max": false,
                 "shard_map":["127.0.0.1:SEND_STATSD_PORT"]
             }
         ]
