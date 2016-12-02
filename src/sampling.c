@@ -19,6 +19,7 @@ typedef struct expiring_entry {
 struct sampler {
     int threshold;
     int window;
+    int cardinality;
     int reservoir_size;
     bool timer_flush_min_max;
 #ifdef __APPLE__
@@ -97,7 +98,7 @@ struct sample_bucket {
 };
 
 
-int sampler_init(sampler_t** sampler, int threshold, int window, int reservoir_size,
+int sampler_init(sampler_t** sampler, int threshold, int window, int cardinality, int reservoir_size,
                  bool timer_flush_min_max, int hm_expiry_frequency, int hm_ttl) {
 
     struct sampler *sam = calloc(1, sizeof(struct sampler));
@@ -106,6 +107,7 @@ int sampler_init(sampler_t** sampler, int threshold, int window, int reservoir_s
 
     sam->threshold = threshold;
     sam->window = window;
+    sam->cardinality = cardinality;
     sam->reservoir_size = reservoir_size;
     sam->timer_flush_min_max = timer_flush_min_max;
     sam->base.hm_expiry_frequency = hm_expiry_frequency;
@@ -231,6 +233,10 @@ static int sampler_flush_callback(void* _s, const char* key, void* _value, void*
     return 0;
 }
 
+static bool _flag_incoming_metric(sampler_t* sampler) {
+    return hashmap_size(sampler->map) >= sampler->cardinality;
+}
+
 void expiry_callback_handler(struct ev_loop *loop, struct ev_timer *timer, int events) {
     sampler_t* sampler = (sampler_t*)timer->data;
 
@@ -268,6 +274,55 @@ void sampler_update_flags(sampler_t* sampler) {
     hashmap_iter(sampler->map, sampler_update_callback, (void*)sampler);
 }
 
+sampling_result sampler_consider_counter(sampler_t* sampler, const char* name, validate_parsed_result_t* parsed) {
+    // safety check, also checked for in stats.c
+    if (parsed->type != METRIC_COUNTER) {
+        return SAMPLER_NOT_SAMPLING;
+    }
+
+    struct sample_bucket* bucket = NULL;
+    hashmap_get(sampler->map, name, (void**)&bucket);
+    if (bucket == NULL) {
+        // Only flag if its a new metric
+        if (_flag_incoming_metric(sampler)) {
+            stats_log("flagging incoming counter metric %s", name);
+            return SAMPLER_FLAGGED;
+        }
+        /* Intialize a new bucket */
+        bucket = malloc(sizeof(struct sample_bucket));
+        bucket->sampling = false;
+        bucket->last_window_count = 1;
+        bucket->type = parsed->type;
+        bucket->sum = 0;
+        bucket->count = 0;
+        bucket->last_modified_at = timestamp();
+        hashmap_put(sampler->map, name, (void*)bucket, NULL);
+    } else {
+        bucket->last_window_count++;
+
+        /* Circuit break and enable sampling mode */
+        if (!bucket->sampling && bucket->last_window_count > sampler->threshold) {
+            stats_debug_log("started counter sampling '%s'", name);
+            bucket->sampling = true;
+        }
+
+        if (bucket->sampling) {
+            double value = parsed->value;
+            double count = 1.0;
+            if (parsed->presampling_value > 0.0 && parsed->presampling_value < 1.0) {
+                value = value * (1.0 / parsed->presampling_value);
+                count = 1 * (1.0 / parsed->presampling_value);
+            }
+            bucket->sum += value;
+            bucket->count += count;
+
+            bucket->last_modified_at = timestamp();
+            return SAMPLER_SAMPLING;
+        }
+    }
+    return SAMPLER_NOT_SAMPLING;
+}
+
 sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, validate_parsed_result_t* parsed) {
     // safety check, also checked for in stats.c
     if (parsed->type != METRIC_TIMER) {
@@ -277,6 +332,11 @@ sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, val
     struct sample_bucket* bucket = NULL;
     hashmap_get(sampler->map, name, (void**)&bucket);
     if (bucket == NULL) {
+        // Only flag if its a new metric
+        if (_flag_incoming_metric(sampler)) {
+            stats_log("flagging incoming timer metric %s", name);
+            return SAMPLER_FLAGGED;
+        }
         /* Intialize a new bucket */
         bucket = malloc(sizeof(struct sample_bucket) + (sizeof(double) * sampler->reservoir_size));
         bucket->sampling = false;
@@ -375,15 +435,15 @@ sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, val
     return SAMPLER_NOT_SAMPLING;
 }
 
-sampling_result sampler_consider_counter(sampler_t* sampler, const char* name, validate_parsed_result_t* parsed) {
-    // safety check, also checked for in stats.c
-    if (parsed->type != METRIC_COUNTER) {
-        return SAMPLER_NOT_SAMPLING;
-    }
-
+sampling_result sampler_consider_gauge(sampler_t* sampler, const char* name, validate_parsed_result_t* parsed) {
     struct sample_bucket* bucket = NULL;
     hashmap_get(sampler->map, name, (void**)&bucket);
     if (bucket == NULL) {
+        // Only flag if its a new metric
+        if (_flag_incoming_metric(sampler)) {
+            stats_log("flagging incoming gauge metric %s", name);
+            return SAMPLER_FLAGGED;
+        }
         /* Intialize a new bucket */
         bucket = malloc(sizeof(struct sample_bucket));
         bucket->sampling = false;
@@ -393,29 +453,8 @@ sampling_result sampler_consider_counter(sampler_t* sampler, const char* name, v
         bucket->count = 0;
         bucket->last_modified_at = timestamp();
         hashmap_put(sampler->map, name, (void*)bucket, NULL);
-    } else {
-        bucket->last_window_count++;
-
-        /* Circuit break and enable sampling mode */
-        if (!bucket->sampling && bucket->last_window_count > sampler->threshold) {
-            stats_debug_log("started counter sampling '%s'", name);
-            bucket->sampling = true;
-        }
-
-        if (bucket->sampling) {
-            double value = parsed->value;
-            double count = 1.0;
-            if (parsed->presampling_value > 0.0 && parsed->presampling_value < 1.0) {
-                value = value * (1.0 / parsed->presampling_value);
-                count = 1 * (1.0 / parsed->presampling_value);
-            }
-            bucket->sum += value;
-            bucket->count += count;
-
-            bucket->last_modified_at = timestamp();
-            return SAMPLER_SAMPLING;
-        }
     }
+   
     return SAMPLER_NOT_SAMPLING;
 }
 

@@ -40,6 +40,24 @@ struct additional_config {
     int sampling_window;
 
     /**
+     * max_counters: Max number of unique counters we will allow (and flush) before
+     * flagging and dropping counters
+     */
+    int max_counters;
+
+    /**
+     * max_timers: Max number of unique timer we will allows (and flush) before
+     * flagging and dropping timers
+     */
+    int max_timers;
+
+    /**
+     * max_gauges: Max number of unique gauges we will allow (and flush) before
+     * flagging and dropping gauges
+     */
+    int max_gauges;
+
+    /**
      * timer_sampling_threshold: start sampling messages received at a rate greater than
      * this quantity over the timer_sampling_window
      */

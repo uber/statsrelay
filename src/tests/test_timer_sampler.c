@@ -43,21 +43,21 @@ int main(int argc, char** argv) {
     validate_statsd(t3, strlen(t3), &t3_res);
     assert(t3_res.type == METRIC_TIMER);
 
-	sampler_t *sampler = NULL;
-	sampler_init(&sampler, 10, 10, 10, true, 10, 10);
-	assert(sampler != NULL);
+    sampler_t *sampler = NULL;
+    sampler_init(&sampler, 10, 10, 10, 10, true, 10, 10);
+    assert(sampler != NULL);
 
     int r = sampler_consider_timer(sampler, t1n, &t1_res);
     assert(r == SAMPLER_NOT_SAMPLING);
 
     // the expire timer watcher should be running now.
-	assert(is_expiry_watcher_active(sampler) == true);
-	assert(is_expiry_watcher_pending(sampler) == false);
+    assert(is_expiry_watcher_active(sampler) == true);
+    assert(is_expiry_watcher_pending(sampler) == false);
 
-	/* Load a large number of samples into the sampler */
-	for (int i = 0; i < 9; i++) {
-		assert(sampler_consider_timer(sampler, t1n, &t1_res) == SAMPLER_NOT_SAMPLING);
-	}
+    /* Load a large number of samples into the sampler */
+    for (int i = 0; i < 9; i++) {
+        assert(sampler_consider_timer(sampler, t1n, &t1_res) == SAMPLER_NOT_SAMPLING);
+    }
 
     /* This 10th update should be sampled */
     assert(sampler_consider_timer(sampler, t1n, &t1_res) == SAMPLER_SAMPLING);
@@ -116,10 +116,10 @@ int main(int argc, char** argv) {
     /* foo should not be sampling */
     assert(sampler_is_sampling(sampler, t3n, METRIC_TIMER) == SAMPLER_NOT_SAMPLING);
 
-	sampler_destroy(sampler);
+    sampler_destroy(sampler);
 
-	assert(is_expiry_watcher_active(sampler) == false);
-	assert(is_expiry_watcher_pending(sampler) == false);
+    assert(is_expiry_watcher_active(sampler) == false);
+    assert(is_expiry_watcher_pending(sampler) == false);
 
-	return 0;
+    return 0;
 }
