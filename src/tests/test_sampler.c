@@ -27,16 +27,16 @@ int main(int argc, char** argv) {
     validate_statsd(c2, strlen(c2), &c2_res);
     assert(c2_res.type == METRIC_COUNTER);
 
-	sampler_t *sampler = NULL;
-	sampler_init(&sampler, 10, 10, 0, true, -1, -1);
-	assert(sampler != NULL);
+    sampler_t *sampler = NULL;
+    sampler_init(&sampler, 10, 10, 10, 10, true, -1, -1);
+    assert(sampler != NULL);
 
     // the expiry timer watcher must not be initialized
-	assert(is_expiry_watcher_active(sampler) == false);
-	assert(is_expiry_watcher_pending(sampler) == false);
+    assert(is_expiry_watcher_active(sampler) == false);
+    assert(is_expiry_watcher_pending(sampler) == false);
 
-	int r = sampler_consider_counter(sampler, c1n, &c1_res);
-	assert(r == SAMPLER_NOT_SAMPLING);
+    int r = sampler_consider_counter(sampler, c1n, &c1_res);
+    assert(r == SAMPLER_NOT_SAMPLING);
 
     /* Load a large number of samples into the sampler */
     for (int i = 0; i < 9; i++) {

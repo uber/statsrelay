@@ -80,17 +80,20 @@ static stats_backend_t *find_backend(stats_backend_t **backend_lists, size_t num
 }
 
 static void initialize_sampler(sampler_t **sampler, ev_timer *watcher, stats_backend_group_t *group,
-            stats_server_t *server, int threshold, int window, int reservoir_size, bool timer_flush_min_max,
-            int hm_expiration_frequency, int hm_ttl, s_handler handler) {
-    int res = sampler_init(sampler, threshold, window, reservoir_size, timer_flush_min_max,
-                        hm_expiration_frequency, hm_ttl);
+            stats_server_t *server, int threshold, int window, int cardinality,
+            bool timer_flush_min_max, int reservoir_size, int hm_expiration_frequency, int hm_ttl, s_handler handler) {
+
+    int res = sampler_init(sampler, threshold, window, cardinality, reservoir_size, timer_flush_min_max,
+                           hm_expiration_frequency, hm_ttl);
 
     if (res) {
         stats_error_log("sampler: loading failed with error %d", res);
     }
-    ev_timer_init(watcher, handler, window, 0);
-    (*watcher).data = (void*)group;
-    ev_timer_start(server->loop, watcher);
+    if (watcher != NULL) {
+        ev_timer_init(watcher, handler, window, 0);
+        (*watcher).data = (void*)group;
+        ev_timer_start(server->loop, watcher);
+    }
 }
 
 // Make a backend, returning it from the backend list if it's already
@@ -266,6 +269,10 @@ static void group_destroy(struct ev_loop *loop, stats_backend_group_t* group) {
         group->timer_sampler = NULL;
         ev_timer_stop(loop, &group->timer_sampling_watcher);
     }
+    if (group->gauge_sampler) {
+        // Destroy gauge sampler
+        sampler_destroy(group->gauge_sampler);
+    }
     free(group);
 }
 
@@ -347,6 +354,10 @@ static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, 
 
     for (int i = 0; i < server->rings->size; i++) {
         stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
+        buffer_produced(response,
+                snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+                    "group_%i.flagged_lines:%" PRIu64 "|g\n",
+                    i, group->flagged_lines));
         buffer_produced(response,
                 snprintf((char *)buffer_tail(response), buffer_spacecount(response),
                     "group_%i.filtered_lines:%" PRIu64 "|g\n",
@@ -505,20 +516,25 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
             group->ring = ring;
             group_prefix_create(dupl, group);
 
+            group->flagged_lines = 0;
 
             if (dupl->sampling_threshold > 0) {
                 // Counter sampler, doesn't have hashmap expired key redemption
                 // pass in a desired ttl of -1 (never expire!).
                 initialize_sampler(&group->count_sampler, &group->counter_sampling_watcher, group, server,
-                        dupl->sampling_threshold, dupl->sampling_window, dupl->reservoir_size, false, -1, -1, sampling_handler);
+                        dupl->sampling_threshold, dupl->sampling_window, dupl->max_counters,
+                        false, dupl->reservoir_size, -1, -1, sampling_handler);
             }
 
             if (dupl->timer_sampling_threshold > 0) {
                 // Timer sampler, will include a passive expiring map by default.
                 initialize_sampler(&group->timer_sampler, &group->timer_sampling_watcher, group, server,
-                        dupl->timer_sampling_threshold, dupl->timer_sampling_window, dupl->reservoir_size,
-                        dupl->timer_flush_min_max, dupl->hm_key_expiration_frequency_in_seconds,
+                        dupl->timer_sampling_threshold, dupl->timer_sampling_window, dupl->max_timers,
+                        dupl->timer_flush_min_max, dupl->reservoir_size, dupl->hm_key_expiration_frequency_in_seconds,
                         dupl->hm_key_ttl_in_seconds, timer_sampling_handler);
+
+                initialize_sampler(&group->gauge_sampler, NULL, group, server, -1, -1,
+                                   dupl->max_gauges, false, -1, -1, -1, NULL);
             }
 
             if (dupl->ingress_blacklist != NULL) {
@@ -745,21 +761,28 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
             }
         }
 
+        sampling_result r = SAMPLER_NOT_SAMPLING;
         if (group->count_sampler) {
-            sampling_result r = SAMPLER_NOT_SAMPLING;
             if (parsed_result.type == METRIC_COUNTER) {
                 r = sampler_consider_counter(group->count_sampler, key_buffer, &parsed_result);
             }
-            if (r == SAMPLER_SAMPLING)
-                continue;
         }
         if (group->timer_sampler) {
-            sampling_result r = SAMPLER_NOT_SAMPLING;
             if (parsed_result.type == METRIC_TIMER) {
                 r = sampler_consider_timer(group->timer_sampler, key_buffer, &parsed_result);
             }
-            if (r == SAMPLER_SAMPLING)
-                continue;
+        }
+        if (group->gauge_sampler) {
+            if (parsed_result.type == METRIC_GAUGE) {
+                r = sampler_consider_gauge(group->gauge_sampler, key_buffer, &parsed_result);
+            }
+        }
+        if (r == SAMPLER_FLAGGED) {
+            group->flagged_lines++;
+            // TODO: Start dropping
+            //continue;
+        } else if (r == SAMPLER_SAMPLING) {
+            continue;
         }
 
         stats_write_to_backend(line, len, key_buffer, key_hash, key_len, group);
@@ -811,6 +834,10 @@ void stats_send_statistics(stats_session_t *session) {
                 snprintf((char *)buffer_tail(response), buffer_spacecount(response),
                     "group:%i filtered_lines gauge %" PRIu64 "\n",
                     i, group->filtered_lines));
+        buffer_produced(response,
+                snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+                    "group:%i flagged_lines gauge %" PRIu64 "\n",
+                    i, group->flagged_lines));
         buffer_produced(response,
                 snprintf((char *)buffer_tail(response), buffer_spacecount(response),
                     "group:%i relayed_lines gauge %" PRIu64 "\n",

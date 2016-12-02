@@ -57,6 +57,9 @@ typedef struct {
 
 	sampler_t* timer_sampler;
 
+	/** just to keep track of unique gauges, no actual sampling */
+	sampler_t* gauge_sampler;
+
 	/** dedicated event timer for timer sampling */
 	ev_timer timer_sampling_watcher;
 
@@ -67,6 +70,7 @@ typedef struct {
 	uint64_t relayed_lines;
 	uint64_t filtered_lines;
 	uint64_t rejected_lines;
+	uint64_t flagged_lines;
 } stats_backend_group_t;
 
 struct stats_server_t {

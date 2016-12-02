@@ -11,21 +11,23 @@ typedef struct sampler sampler_t;
 
 typedef enum {
     SAMPLER_NOT_SAMPLING = 0,
-    SAMPLER_SAMPLING = 1
+    SAMPLER_SAMPLING = 1,
+    SAMPLER_FLAGGED = 2
 } sampling_result;
+
 
 typedef void(sampler_flush_cb)(void* data, const char* key, const char* line, int len);
 
 void expiry_callback_handler(struct ev_loop* , struct ev_timer* , int);
 
-int sampler_init(sampler_t** sampler, int threshold, int window, int reservoir_size,
-	bool timer_flush_min_max, int hm_expiry_frequency, int hm_ttl);
+int sampler_init(sampler_t** sampler, int threshold, int window, int cardinality,
+                 int reservoir_size, bool timer_flush_min_max, int hm_expiry_frequency,
+                 int hm_ttl);
 
 /**
  * Registered callback for hashmap stale key expiry.
  */
 static int expiry_callback(void* _s, const char* key, void* _value, void * metadata);
-
 
 /**
  * Consider a statsd counter for sampling - based on its name and validation
@@ -38,6 +40,12 @@ sampling_result sampler_consider_counter(sampler_t* sampler, const char* name, v
  * parsed result with includes its data object. Uses reservoir of size 'k'
  */
 sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, validate_parsed_result_t*);
+
+/**
+ * Currently only used for tracking the number of gauges active in the system
+ * no sampling will be performed on the gauges
+ */
+sampling_result sampler_consider_gauge(sampler_t* sampler, const char* name, validate_parsed_result_t*);
 
 /**
  * Walk through all keys in the sampler and update the sampling or not sampling flag,
@@ -86,6 +94,11 @@ bool is_expiry_watcher_pending(sampler_t *sampler);
  * Return the frequency of expiration timer (default -1)
  */
 int sampler_expiration_timer_frequency(sampler_t  *sampler);
+
+/**
+ * Decides whether the metric should be flagged
+ */
+static bool _flag_incoming_metric(sampler_t* sampler);
 
 /**
  * Boolean flag that sampler flush callback uses to decide

@@ -169,6 +169,49 @@ class ConfigTestCase(TestCase):
 
 class StatsdTestCase(TestCase):
 
+    def test_tcp_with_cardinality_checks(self):
+        with self.generate_config('tcp', suffix="-cardinality.json") as config_path:
+            MAX_UNIQUE_METRICS = 5
+            self.launch_process(config_path)
+            fd, addr = self.statsd_listener.accept()
+            sender = self.connect('tcp', self.bind_statsd_port)
+
+            # test counter
+            for i in range(0, 10):
+                sender.sendall('test.{}:1|c\n'.format(i + 1))
+                sender.sendall('test.{}:1|ms\n'.format(i + 1))
+                sender.sendall('test.{}:1|g\n'.format(i + 1))
+
+            expected = ['test-1.test.{}.suffix:1|g\n'.format(i + 1) for i in range(0, 10)]
+            expected += ['test-1.test.{}.suffix:1|ms\n'.format(i + 1) for i in range(0, 10)]
+            expected += ['test-1.test.{}.suffix:1|c\n'.format(i + 1) for i in range(0, 10)]
+
+            self.check_list_in_recv(fd, expected, 1024)
+
+            sender.sendall('status\n')
+            status = sender.recv(65536)
+            sender.close()
+
+            backends = defaultdict(dict)
+            groups = defaultdict(dict)
+            for line in status.split('\n'):
+                if not line:
+                    break
+                if line.startswith('backend:'):
+                    backend, key, valuetype, value = line.split(' ', 3)
+                    backend = backend.split(':', 1)[1]
+                    backends[backend][key] = int(value)
+                elif line.startswith('group:'):
+                    group, key, _, value = line.split(' ', 3)
+                    group_idx = group.split(':', 1)[1]
+                    groups[key][group_idx] = int(value)
+
+            key = '127.0.0.1:%d:tcp' % (self.statsd_listener.getsockname()[1])
+            self.assertEqual(backends[key]['relayed_lines'], 30)
+            self.assertEqual(backends[key]['dropped_lines'], 0)
+            self.assertEqual(groups['flagged_lines']['0'], 0)
+            self.assertEqual(groups['flagged_lines']['1'], 15)
+
     def test_tcp_with_sampler(self):
         with self.generate_config('tcp', suffix="-sample.json") as config_path:
             self.launch_process(config_path)
