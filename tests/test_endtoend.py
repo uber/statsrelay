@@ -66,6 +66,14 @@ class TestCase(unittest.TestCase):
         for line in subset:
             self.assertNotIn(line, bytes_read)
 
+    def check_list_in_out_recv(self, fd, in_list=list(), out_list=list(), size=512):
+        bytes_read = fd.recv(size)
+        for line in in_list:
+            self.assertIn(line, bytes_read)
+
+        for line in out_list:
+            self.assertNotIn(line, bytes_read)
+
     def recv_status(self, fd):
         return fd.recv(65536)
 
@@ -182,11 +190,15 @@ class StatsdTestCase(TestCase):
                 sender.sendall('test.{}:1|ms\n'.format(i + 1))
                 sender.sendall('test.{}:1|g\n'.format(i + 1))
 
-            expected = ['test-1.test.{}.suffix:1|g\n'.format(i + 1) for i in range(0, 10)]
-            expected += ['test-1.test.{}.suffix:1|ms\n'.format(i + 1) for i in range(0, 10)]
-            expected += ['test-1.test.{}.suffix:1|c\n'.format(i + 1) for i in range(0, 10)]
+            expected = ['test-1.test.{}.suffix:1|g\n'.format(i + 1) for i in range(0, 5)]
+            expected += ['test-1.test.{}.suffix:1|ms\n'.format(i + 1) for i in range(0, 5)]
+            expected += ['test-1.test.{}.suffix:1|c\n'.format(i + 1) for i in range(0, 5)]
 
-            self.check_list_in_recv(fd, expected, 1024)
+            unexpected = ['test-1.test.{}.suffix:1|g\n'.format(i + 1) for i in range(5, 10)]
+            unexpected += ['test-1.test.{}.suffix:1|ms\n'.format(i + 1) for i in range(5, 10)]
+            unexpected += ['test-1.test.{}.suffix:1|c\n'.format(i + 1) for i in range(5, 10)]
+
+            self.check_list_in_out_recv(fd, expected, unexpected, 1024)
 
             sender.sendall('status\n')
             status = sender.recv(65536)
@@ -207,7 +219,7 @@ class StatsdTestCase(TestCase):
                     groups[key][group_idx] = int(value)
 
             key = '127.0.0.1:%d:tcp' % (self.statsd_listener.getsockname()[1])
-            self.assertEqual(backends[key]['relayed_lines'], 30)
+            self.assertEqual(backends[key]['relayed_lines'], 15)
             self.assertEqual(backends[key]['dropped_lines'], 0)
             self.assertEqual(groups['flagged_lines']['0'], 0)
             self.assertEqual(groups['flagged_lines']['1'], 15)

@@ -779,8 +779,7 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
         }
         if (r == SAMPLER_FLAGGED) {
             group->flagged_lines++;
-            // TODO: Start dropping
-            //continue;
+            continue;
         } else if (r == SAMPLER_SAMPLING) {
             continue;
         }

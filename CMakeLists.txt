@@ -54,7 +54,7 @@ set(SOURCE_FILES
     src/validate.h
     src/vector.c
     src/vector.h
-        src/sampling.h src/sampling.c)
+    src/sampling.h src/sampling.c)
 
 add_executable(statsrelay ${SOURCE_FILES} src/main.c)
 add_executable(stresstest src/stresstest.c)
