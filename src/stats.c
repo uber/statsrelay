@@ -567,6 +567,18 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
             monitor_group->ring = ring;
             group_prefix_create(stat, monitor_group);
 
+            monitor_group->flagged_lines = 0;
+
+            if (stat->ingress_blacklist != NULL) {
+                if (group_filter_create(stat->ingress_blacklist, &monitor_group->ingress_blacklist) != 0)
+                    goto server_create_err;
+            }
+
+            if (stat->ingress_filter != NULL) {
+                if (group_filter_create(stat->ingress_filter, &monitor_group->ingress_filter) != 0)
+                    goto server_create_err;
+            }
+
             /**
              * Once initialized, lets kick off the timer
              */

@@ -17,7 +17,8 @@
     "self_stats": {
           "prefix": "statsd-staging-iad.",
           "shard_map": ["statsd-development-iad-onebox.lyft.net:8125", "statsd-development-iad-onebox.lyft.net:8125"],
-          "suffix": ".instance.statsd-staging-iad-1315e7c4"
+          "suffix": ".instance.statsd-staging-iad-1315e7c4",
+          "input_filter": "^group_[0-9]+\\.flagged_lines"
     }
   }
 }
