@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
     hashring_t statsd_ring = NULL;
 
     if (app_cfg->statsd_config.initialized) {
-        process_self_stats = app_cfg->statsd_config.send_self_stats;
+        process_self_stats = app_cfg->statsd_config.send_health_metrics;
 
         list_t ring = app_cfg->statsd_config.ring;
         if (ring->size > 0) {
@@ -103,7 +103,7 @@ int main(int argc, char **argv) {
             if (choice != NULL) {
                 printf(" statsd=%s statsd_shard=%d", choice, shard);
             }
-            printf(" process_self_stats=%s", process_self_stats ? "true" : "false");
+            printf(" send_health_metrics=%s", process_self_stats ? "true" : "false");
         }
         putchar('\n');
         fflush(stdout);

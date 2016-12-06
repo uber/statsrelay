@@ -548,7 +548,7 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
             }
         }
 
-        if (config->send_self_stats) {
+        if (config->send_health_metrics) {
             /**
              * Only single config for monitor section
              */
@@ -608,7 +608,7 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
                 hashring_size(((stats_backend_group_t*)server->rings->data[i])->ring));
 
 
-    if (config->send_self_stats) {
+    if (config->send_health_metrics) {
         for (int i = 0; i < server->monitor_ring->size; i++)
             stats_log("initialized monitor server %d (%d total backends in system), hashring size = %d",
                     i,

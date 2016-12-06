@@ -9,7 +9,7 @@
 
 struct server {
     bool enabled;
-    bool send_self_stats;
+    bool send_health_metrics;
     stats_server_t *server;
     tcpserver_t *ts;
     udpserver_t *us;
