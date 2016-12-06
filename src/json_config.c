@@ -11,7 +11,7 @@ static void json_error_log(const char* msg, json_error_t* error) {
 
 static void init_proto_config(struct proto_config *protoc) {
     protoc->initialized = false;
-    protoc->send_self_stats = false;
+    protoc->send_health_metrics = false;
     protoc->bind = NULL;
     protoc->enable_validation = true;
     protoc->enable_tcp_cork = true;
@@ -176,13 +176,13 @@ static int parse_proto(json_t* json, struct proto_config* config) {
         }
     }
 
-    const json_t* self_stats_json = json_object_get(json, "self_stats");
-    if (self_stats_json != NULL) {
-        if (json_is_object(self_stats_json)) {
-            parse_additional_config(self_stats_json, config, config->sstats, "monitoring");
-            config->send_self_stats = true;
+    const json_t* health_metrics_json = json_object_get(json, "health_metrics_to");
+    if (health_metrics_json != NULL) {
+        if (json_is_object(health_metrics_json)) {
+            parse_additional_config(health_metrics_json, config, config->sstats, "monitoring");
+            config->send_health_metrics = true;
         } else {
-            stats_error_log("self_stats option does not accept arrays");
+            stats_error_log("health_metrics_to option does not accept arrays");
             return -1;
         }
     }

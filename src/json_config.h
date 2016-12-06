@@ -99,7 +99,7 @@ struct additional_config {
 
 struct proto_config {
     bool initialized;
-    bool send_self_stats;
+    bool send_health_metrics;
     char *bind;
     bool enable_validation;
     bool enable_tcp_cork;

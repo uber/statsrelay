@@ -7,7 +7,7 @@
 
 static void init_server(struct server *server) {
     server->enabled = false;
-    server->send_self_stats = false;
+    server->send_health_metrics = false;
     server->server = NULL;
     server->ts = NULL;
     server->us = NULL;
@@ -23,11 +23,11 @@ static bool connect_server(struct server *server,
         return false;
     }
 
-    if (config->send_self_stats) {
+    if (config->send_health_metrics) {
         /**
          * Deduce if we should relay self stats over
          */
-        server->send_self_stats = true;
+        server->send_health_metrics = true;
     }
 
     struct ev_loop *loop = ev_default_loop(0);
