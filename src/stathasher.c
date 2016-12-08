@@ -62,11 +62,11 @@ int main(int argc, char **argv) {
 
 	if (app_cfg->carbon_config.initialized) {
 		carbon_ring = hashring_load_from_config(
-			&app_cfg->carbon_config, NULL, my_strdup, free);
+			app_cfg->carbon_config.ring, NULL, my_strdup, free);
 	}
 	if (app_cfg->statsd_config.initialized) {
 		statsd_ring = hashring_load_from_config(
-			&app_cfg->statsd_config, NULL, my_strdup, free);
+			app_cfg->statsd_config.ring, NULL, my_strdup, free);
 	}
 	destroy_config(app_cfg);
 

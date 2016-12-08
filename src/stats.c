@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <time.h>
 
+#include "./filter.h"
 #include "./hashring.h"
 #include "./buffer.h"
 #include "./log.h"
@@ -20,6 +21,11 @@
 #include "./validate.h"
 
 #define MAX_UDP_LENGTH 65536
+
+/**
+ * Static stack space for a single statsd key value
+ */
+#define KEY_BUFFER 8192
 
 typedef struct {
 	tcpclient_t client;
@@ -30,6 +36,20 @@ typedef struct {
 	uint64_t dropped_lines;
 	int failing;
 } stats_backend_t;
+
+typedef struct {
+	const char* prefix;
+	size_t prefix_len;
+	const char* suffix;
+	size_t suffix_len;
+
+	filter_t* ingress_filter;
+	hashring_t ring;
+
+	/* Stats */
+	uint64_t relayed_lines;
+	uint64_t filtered_lines;
+} stats_backend_group_t;
 
 struct stats_server_t {
 	struct ev_loop *loop;
@@ -44,7 +64,7 @@ struct stats_server_t {
 	size_t num_backends;
 	stats_backend_t **backend_list;
 
-	hashring_t ring;
+	list_t rings;
 	protocol_parser_t parser;
 	validate_line_validator_t validator;
 };
@@ -165,12 +185,15 @@ static void* make_backend(const char *host_and_port, void *data) {
 	if (tcpclient_init(&backend->client,
 			   server->loop,
 			   backend,
+			   host,
+			   port,
+			   protocol,
 			   server->config)) {
 		stats_log("stats: failed to tcpclient_init");
 		goto make_err;
 	}
 
-	if (tcpclient_connect(&backend->client, host, port, protocol)) {
+	if (tcpclient_connect(&backend->client)) {
 		stats_log("stats: failed to connect tcpclient");
 		goto make_err;
 	}
@@ -197,15 +220,52 @@ make_err:
 	return NULL;
 }
 
+/*
+ * This function does nothing so we don't destroy a backend more than once
+ */
+static void nop_kill_backend(void *data) {
+	return;
+}
 
-static void kill_backend(void *data) {
-	stats_backend_t *backend = (stats_backend_t *) data;
+static void kill_backend(stats_backend_t *backend) {
 	if (backend->key != NULL) {
 		stats_debug_log("killing backend %s", backend->key);
 		free(backend->key);
 	}
 	tcpclient_destroy(&backend->client, 1);
 	free(backend);
+}
+
+static void group_destroy(stats_backend_group_t* group) {
+	hashring_dealloc(group->ring);
+	if (group->ingress_filter) {
+		filter_free(group->ingress_filter);
+		group->ingress_filter = NULL;
+	}
+	free(group);
+}
+
+static int group_filter_create(struct duplicate_config* dupl, stats_backend_group_t* group) {
+	filter_t* filter;
+	int st = filter_re_create(&filter, dupl->ingress_filter, NULL);
+	if (!st) { return st; }
+	group->ingress_filter = filter;
+	return 0;
+}
+
+static void group_prefix_create(struct duplicate_config* dupl, stats_backend_group_t* group) {
+	group->prefix = dupl->prefix;
+	if (group->prefix)
+		group->prefix_len = strlen(group->prefix);
+	else
+		group->prefix_len = 0;
+
+	group->suffix = dupl->suffix;
+	if (group->suffix)
+		group->suffix_len = strlen(group->suffix);
+	else
+		group->suffix_len = 0;
+
 }
 
 stats_server_t *stats_server_create(struct ev_loop *loop,
@@ -223,11 +283,49 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 	server->num_backends = 0;
 	server->backend_list = NULL;
 	server->config = config;
-	server->ring = hashring_load_from_config(
-		config, server, make_backend, kill_backend);
-	if (server->ring == NULL) {
-		stats_error_log("hashring_load_from_config failed");
-		goto server_create_err;
+	server->rings = statsrelay_list_new();
+	{
+		/* First load the primary shard map from the configuration,
+		   then load the duplicate shard map with extra parameters.
+
+		   Once YAML config is removed this can become a non-specialized
+		   loop.
+		*/
+
+		hashring_t ring = hashring_load_from_config(
+		config->ring, server, make_backend, nop_kill_backend);
+		if (ring == NULL) {
+			stats_error_log("hashring_load_from_config failed");
+			goto server_create_err;
+		}
+		statsrelay_list_expand(server->rings);
+		stats_backend_group_t* group = calloc(1, sizeof(stats_backend_group_t));
+
+		group->ring = ring;
+		server->rings->data[server->rings->size - 1] = (void*)group;
+
+		for (int dupl_i = 0; dupl_i < config->dupl->size; dupl_i++) {
+			struct duplicate_config *dupl = config->dupl->data[dupl_i];
+			stats_log("Loading a duplicate configuration");
+			ring = hashring_load_from_config(dupl->ring, server, make_backend, nop_kill_backend);
+			if (ring == NULL) {
+				stats_error_log("hashring_load_from_config for duplicate ring failed");
+				goto server_create_err;
+			}
+			statsrelay_list_expand(server->rings);
+			group = malloc(sizeof(stats_backend_group_t));
+			memset(group, 0, sizeof(stats_backend_group_t));
+			group->ring = ring;
+
+			group_prefix_create(dupl, group);
+
+			if (dupl->ingress_filter) {
+				if (group_filter_create(dupl, group) != 0)
+					goto server_create_err;
+			}
+
+			server->rings->data[server->rings->size - 1] = (void*)group;
+		}
 	}
 
 	server->bytes_recv_udp = 0;
@@ -239,14 +337,21 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 	server->parser = parser;
 	server->validator = validator;
 
-	stats_debug_log("initialized server with %d backends, hashring size = %d",
-			server->num_backends, hashring_size(server->ring));
+	for (int i = 0; i < server->rings->size; i++)
+		stats_debug_log("initialized server %d (%d total backends in system), hashring size = %d",
+				i,
+				server->num_backends,
+				hashring_size(((stats_backend_group_t*)server->rings->data[i])->ring));
 
 	return server;
 
 server_create_err:
 	if (server != NULL) {
-		hashring_dealloc(server->ring);
+		for (int i = 0; i < server->rings->size; i++) {
+			stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
+			group_destroy(group);
+		}
+		statsrelay_list_destroy(server->rings);
 		free(server);
 	}
 	return NULL;
@@ -257,7 +362,11 @@ size_t stats_num_backends(stats_server_t *server) {
 }
 
 void stats_server_reload(stats_server_t *server) {
-	hashring_dealloc(server->ring);
+	for (int i = 0; i < server->rings->size; i++) {
+		stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
+		group_destroy(group);
+	}
+	statsrelay_list_destroy(server->rings);
 
 	free(server->backend_list);
 	server->num_backends = 0;
@@ -297,7 +406,7 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 		}
 	}
 
-	static char key_buffer[8192];
+	static char key_buffer[KEY_BUFFER];
 	size_t key_len = ss->parser(line, len);
 	if (key_len == 0) {
 		ss->malformed_lines++;
@@ -307,25 +416,71 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 	memcpy(key_buffer, line, key_len);
 	key_buffer[key_len] = '\0';
 
-	stats_backend_t *backend = hashring_choose(ss->ring, key_buffer, NULL);
+	for (int i = 0; i < ss->rings->size; i++) {
+		stats_backend_group_t* group = (stats_backend_group_t*)ss->rings->data[i];
+		stats_backend_t *backend = hashring_choose(group->ring, key_buffer, NULL);
 
-	if (backend == NULL) {
-		return 1;
-	}
-
-	if (tcpclient_sendall(&backend->client, line, len + 1) != 0) {
-		backend->dropped_lines++;
-		if (backend->failing == 0) {
-			stats_log("stats: Error sending to backend %s", backend->key);
-			backend->failing = 1;
+		if (backend == NULL) {
+			/* No backend? No problem. Just skip doing anything */
+			continue;
 		}
-		return 2;
-	} else {
-		backend->failing = 0;
-	}
 
-	backend->bytes_queued += len + 1;
-	backend->relayed_lines++;
+		/* If we have a filter, lets run it */
+		if (group->ingress_filter) {
+			bool res = filter_exec(group->ingress_filter, key_buffer, key_len);
+			if (!res) { /* Filter didn't match, don't process this backend */
+				group->filtered_lines++;
+				continue;
+			}
+		}
+
+		/* Allow the line to be modified if needed */
+		char* linebuf = (char*)line;
+		int send_len = len;
+
+		if (group->prefix != NULL || group->suffix != NULL) {
+			static char prefix_line_buffer[MAX_UDP_LENGTH + 1];
+			linebuf = prefix_line_buffer;
+			linebuf[0] = '\0';
+
+			if (group->prefix) {
+				strcpy(linebuf, group->prefix);
+				linebuf += group->prefix_len;
+			}
+
+			strcpy(linebuf, key_buffer);
+			linebuf += key_len;
+
+			if (group->suffix) {
+				strcpy(linebuf, group->suffix);
+				linebuf += group->suffix_len;
+			}
+
+			/*                                copy \n\0 from line */
+			memcpy(linebuf, &line[key_len], (len + 2) - key_len);
+
+			/* Reset position */
+			linebuf = prefix_line_buffer;
+			send_len += group->prefix_len + group->suffix_len;
+		}
+
+		if (tcpclient_sendall(&backend->client, linebuf, send_len + 1) != 0) {
+			backend->dropped_lines++;
+			if (backend->failing == 0) {
+				stats_log("stats: Error sending to backend %s", backend->key);
+				backend->failing = 1;
+			}
+			// We will allow a backend to fail with a full queue
+			// and just continue operating. This breaks some backpressure
+			// mechanisms and should be fixed.
+		} else {
+			backend->failing = 0;
+		}
+		group->relayed_lines++;
+
+		backend->bytes_queued += len + 1;
+		backend->relayed_lines++;
+	}
 
 	return 0;
 }
@@ -366,6 +521,18 @@ void stats_send_statistics(stats_session_t *session) {
 		snprintf((char *)buffer_tail(response), buffer_spacecount(response),
 		"global malformed_lines gauge %" PRIu64 "\n",
 		session->server->malformed_lines));
+
+	for (int i = 0; i < session->server->rings->size; i++) {
+		stats_backend_group_t* group = (stats_backend_group_t*)session->server->rings->data[i];
+		buffer_produced(response,
+				snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+					 "group:%i filtered_lines gauge %" PRIu64 "\n",
+					 i, group->filtered_lines));
+		buffer_produced(response,
+				snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+					 "group:%i relayed_lines gauge %" PRIu64 "\n",
+					 i, group->relayed_lines));
+	}
 
 	for (size_t i = 0; i < session->server->num_backends; i++) {
 		backend = session->server->backend_list[i];
@@ -558,7 +725,18 @@ udp_recv_err:
 }
 
 void stats_server_destroy(stats_server_t *server) {
-	hashring_dealloc(server->ring);
+	for (int i = 0; i < server->rings->size; i++) {
+		stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
+		group_destroy(group);
+	}
+
+	statsrelay_list_destroy(server->rings);
+
+	for (size_t i = 0; i < server->num_backends; i++) {
+		stats_backend_t *backend = server->backend_list[i];
+		kill_backend(backend);
+	}
+
 	free(server->backend_list);
 	server->num_backends = 0;
 	free(server);

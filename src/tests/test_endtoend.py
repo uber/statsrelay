@@ -56,13 +56,13 @@ class TestCase(unittest.TestCase):
         return fd.recv(65536)
 
     @contextlib.contextmanager
-    def generate_config(self, mode):
+    def generate_config(self, mode, suffix='.yaml'):
         if mode.lower() == 'tcp':
             sock_type = socket.SOCK_STREAM
-            config_path = 'tests/statsrelay.yaml'
+            config_path = 'tests/statsrelay' + suffix
         elif mode.lower() == 'udp':
             sock_type = socket.SOCK_DGRAM
-            config_path = 'tests/statsrelay_udp.yaml'
+            config_path = 'tests/statsrelay_udp' + suffix
         else:
             raise ValueError()
 
@@ -84,7 +84,7 @@ class TestCase(unittest.TestCase):
                 self.carbon_listener.listen(1)
                 self.statsd_listener.listen(1)
 
-            new_config = tempfile.NamedTemporaryFile()
+            new_config = tempfile.NamedTemporaryFile(suffix=suffix)
             with open(config_path) as config_file:
                 data = config_file.read()
             for var, replacement in [
@@ -139,6 +139,12 @@ class ConfigTestCase(TestCase):
 
     def test_check_valid_tcp_file(self):
         with self.generate_config('tcp') as config_path:
+            proc = subprocess.Popen(['./statsrelay', '-t', config_path])
+            proc.wait()
+            self.assertEqual(proc.returncode, 0)
+
+    def test_check_valid_tcp_file(self):
+        with self.generate_config('tcp', suffix='.json') as config_path:
             proc = subprocess.Popen(['./statsrelay', '-t', config_path])
             proc.wait()
             self.assertEqual(proc.returncode, 0)

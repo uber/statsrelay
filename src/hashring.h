@@ -19,7 +19,7 @@ hashring_t hashring_init(void *alloc_data,
 			 hashring_dealloc_func dealloc_func);
 
 
-hashring_t hashring_load_from_config(struct proto_config *pc,
+hashring_t hashring_load_from_config(list_t config_ring,
 				     void *alloc_data,
 				     hashring_alloc_func alloc_func,
 				     hashring_dealloc_func dealloc_func);

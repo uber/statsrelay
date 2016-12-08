@@ -56,7 +56,15 @@ static struct config *load_config(const char *filename) {
 		stats_error_log("failed to open file %s", servers.config_file);
 		return NULL;
 	}
-	struct config *cfg = parse_config(file_handle);
+
+	int len = strlen(filename);
+	struct config *cfg;
+
+	if (strcmp(&filename[len - 5], ".json") == 0)
+		cfg = parse_json_config(file_handle);
+	else
+		cfg = parse_config(file_handle);
+
 	fclose(file_handle);
 	return cfg;
 }

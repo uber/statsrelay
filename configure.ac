@@ -36,5 +36,7 @@ AC_CONFIG_FILES([Makefile
                  src/Makefile])
 AC_CHECK_LIB([ev], [ev_run])
 AC_CHECK_LIB([yaml], [yaml_parser_initialize])
+AC_CHECK_LIB([jansson], [json_load_file])
+AC_CHECK_LIB([pcre], [pcre_compile])
 AC_REVISION([m4_esyscmd_s([git describe --always])])
 AC_OUTPUT

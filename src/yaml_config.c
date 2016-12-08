@@ -34,6 +34,7 @@ static void init_proto_config(struct proto_config *protoc) {
 	protoc->enable_tcp_cork = true;
 	protoc->max_send_queue = 134217728;
 	protoc->ring = statsrelay_list_new();
+	protoc->dupl = statsrelay_list_new();
 }
 
 struct config* parse_config(FILE *input) {
@@ -217,12 +218,23 @@ parse_err:
 	return NULL;
 }
 
+static void destroy_proto_config(struct proto_config *config) {
+	statsrelay_list_destroy_full(config->ring);
+	for (int i = 0; i < config->dupl->size; i++) {
+		struct duplicate_config* dupl = (struct duplicate_config*)config->dupl->data[i];
+		if (dupl->prefix)
+			free(dupl->prefix);
+		if (dupl->suffix)
+			free(dupl->suffix);
+		statsrelay_list_destroy_full(dupl->ring);
+	}
+	free(config->bind);
+}
+
 void destroy_config(struct config *config) {
 	if (config != NULL) {
-		statsrelay_list_destroy_full(config->carbon_config.ring);
-		free(config->carbon_config.bind);
-		statsrelay_list_destroy_full(config->statsd_config.ring);
-		free(config->statsd_config.bind);
+		destroy_proto_config(&config->statsd_config);
+		destroy_proto_config(&config->carbon_config);
 		free(config);
 	}
 }
