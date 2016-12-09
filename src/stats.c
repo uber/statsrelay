@@ -354,10 +354,12 @@ static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, 
 
     for (int i = 0; i < server->rings->size; i++) {
         stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
-        buffer_produced(response,
-                snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-                    "group_%i.flagged_lines:%" PRIu64 "|g\n",
-                    i, group->flagged_lines));
+        if (group->flagged_lines > 0) {
+            buffer_produced(response,
+                    snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+                        "group_%i.flagged_lines:%" PRIu64 "|g\n",
+                        i, group->flagged_lines));
+        }
         buffer_produced(response,
                 snprintf((char *)buffer_tail(response), buffer_spacecount(response),
                     "group_%i.filtered_lines:%" PRIu64 "|g\n",
