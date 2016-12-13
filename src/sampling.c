@@ -170,7 +170,7 @@ static int expiry_callback(void* _s, const char* key, void* _value, void *metada
     time_t now = timestamp();
 
     if ((now - bucket->last_modified_at) > (*ttl)) {
-        stats_debug_log("deleting key %s", key);
+        stats_log("deleting key %s", key);
         hashmap_delete(sampler->map, key);
     }
 
