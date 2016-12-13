@@ -521,11 +521,10 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
             group->flagged_lines = 0;
 
             if (dupl->sampling_threshold > 0) {
-                // Counter sampler, doesn't have hashmap expired key redemption
-                // pass in a desired ttl of -1 (never expire!).
                 initialize_sampler(&group->count_sampler, &group->counter_sampling_watcher, group, server,
                         dupl->sampling_threshold, dupl->sampling_window, dupl->max_counters,
-                        false, dupl->reservoir_size, -1, -1, sampling_handler);
+                        false, dupl->reservoir_size, dupl->hm_key_expiration_frequency_in_seconds,
+                        dupl->hm_key_ttl_in_seconds, sampling_handler);
             }
 
             if (dupl->timer_sampling_threshold > 0) {
@@ -535,6 +534,8 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
                         dupl->timer_flush_min_max, dupl->reservoir_size, dupl->hm_key_expiration_frequency_in_seconds,
                         dupl->hm_key_ttl_in_seconds, timer_sampling_handler);
 
+                // gauges, doesn't have hashmap expired key redemption
+                // pass in a desired ttl of -1 (never expire!).
                 initialize_sampler(&group->gauge_sampler, NULL, group, server, -1, -1,
                                    dupl->max_gauges, false, -1, -1, -1, NULL);
             }
@@ -797,7 +798,12 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
         } else if (r == SAMPLER_SAMPLING) {
             continue;
         }
-
+        /**
+         * reset the error counter
+         * when we start sending
+         * stats to the backends
+         */
+        group->flagged_lines = 0;
         stats_write_to_backend(line, len, key_buffer, key_hash, key_len, group);
     }
 
