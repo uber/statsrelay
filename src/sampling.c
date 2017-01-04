@@ -285,7 +285,7 @@ sampling_result sampler_consider_counter(sampler_t* sampler, const char* name, v
     if (bucket == NULL) {
         // Only flag if its a new metric
         if (_flag_incoming_metric(sampler)) {
-            stats_log("flagging incoming counter metric %s", name);
+            stats_debug_log("flagging incoming counter metric %s", name);
             return SAMPLER_FLAGGED;
         }
         /* Intialize a new bucket */
@@ -334,7 +334,7 @@ sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, val
     if (bucket == NULL) {
         // Only flag if its a new metric
         if (_flag_incoming_metric(sampler)) {
-            stats_log("flagging incoming timer metric %s", name);
+            stats_debug_log("flagging incoming timer metric %s", name);
             return SAMPLER_FLAGGED;
         }
         /* Intialize a new bucket */
@@ -441,7 +441,7 @@ sampling_result sampler_consider_gauge(sampler_t* sampler, const char* name, val
     if (bucket == NULL) {
         // Only flag if its a new metric
         if (_flag_incoming_metric(sampler)) {
-            stats_log("flagging incoming gauge metric %s", name);
+            stats_debug_log("flagging incoming gauge metric %s", name);
             return SAMPLER_FLAGGED;
         }
         /* Intialize a new bucket */
