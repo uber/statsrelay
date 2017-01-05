@@ -8,6 +8,11 @@
 #include "hashmap.h"
 #include "stats.h"
 
+#ifdef __APPLE__
+#include <mach/clock.h>
+#include <mach/mach.h>
+#endif
+
 #define HM_SIZE 32768
 
 typedef struct expiring_entry {
@@ -135,10 +140,21 @@ int sampler_init(sampler_t** sampler, int threshold, int window, int cardinality
 }
 
 static time_t timestamp() {
-    struct timeval detail_time;
-    gettimeofday(&detail_time,NULL);
+    struct timespec current_time;
+    time_t timestamp_sec;
+#ifdef __APPLE__
+    clock_serv_t cclock;
+    mach_timespec_t mts;
+    host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
+    clock_get_time(cclock, &mts);
+    mach_port_deallocate(mach_task_self(), cclock);
+    timestamp_sec = mts.tv_sec;
+#else
+    clock_gettime(CLOCK_REALTIME_COARSE, &current_time);
+    timestamp_sec = current_time.tv_sec;
+#endif
 
-    return detail_time.tv_sec;
+    return timestamp_sec;
 }
 
 static int sampler_update_callback(void* _s, const char* key, void* _value, void *metadata) {
