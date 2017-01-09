@@ -11,6 +11,8 @@
                 "suffix": ".suffix",
                 "sampling_threshold": 5,
                 "sampling_window": 3,
+                "gauge_sampling_threshold": 5,
+                "gauge_sampling_window": 3,
                 "counter_cardinality": 5,
                 "timer_cardinality": 5,
                 "gauge_cardinality": 5,

@@ -270,8 +270,9 @@ static void group_destroy(struct ev_loop *loop, stats_backend_group_t* group) {
         ev_timer_stop(loop, &group->timer_sampling_watcher);
     }
     if (group->gauge_sampler) {
-        // Destroy gauge sampler
         sampler_destroy(group->gauge_sampler);
+        group->gauge_sampler = NULL;
+        ev_timer_stop(loop, &group->gauge_sampling_watcher);
     }
     free(group);
 }
@@ -354,12 +355,10 @@ static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, 
 
     for (int i = 0; i < server->rings->size; i++) {
         stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
-        if (group->flagged_lines > 0) {
-            buffer_produced(response,
-                    snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-                        "group_%i.flagged_lines:%" PRIu64 "|g\n",
-                        i, group->flagged_lines));
-        }
+        buffer_produced(response,
+                snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+                    "group_%i.flagged_lines:%" PRIu64 "|g\n",
+                    i, group->flagged_lines));
         buffer_produced(response,
                 snprintf((char *)buffer_tail(response), buffer_spacecount(response),
                     "group_%i.filtered_lines:%" PRIu64 "|g\n",
@@ -462,6 +461,15 @@ static void timer_sampling_handler(struct ev_loop *loop, struct ev_timer* timer,
     ev_timer_start(loop, &group->timer_sampling_watcher);
 }
 
+static void gauge_sampling_handler(struct ev_loop *loop, struct ev_timer* timer, int events) {
+    stats_backend_group_t* group = (stats_backend_group_t*)timer->data;
+
+    sampler_flush(group->gauge_sampler, sampling_flush_cb, (void*)group);
+
+    ev_timer_set(&group->gauge_sampling_watcher, sampler_window(group->gauge_sampler), 0.0);
+    ev_timer_start(loop, &group->gauge_sampling_watcher);
+}
+
 stats_server_t *stats_server_create(struct ev_loop *loop,
         struct proto_config *config,
         protocol_parser_t parser,
@@ -533,11 +541,15 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
                         dupl->timer_sampling_threshold, dupl->timer_sampling_window, dupl->max_timers,
                         dupl->timer_flush_min_max, dupl->reservoir_size, dupl->hm_key_expiration_frequency_in_seconds,
                         dupl->hm_key_ttl_in_seconds, timer_sampling_handler);
+            }
 
+            if (dupl->gauge_sampling_threshold > 0) {
                 // gauges, doesn't have hashmap expired key redemption
                 // pass in a desired ttl of -1 (never expire!).
-                initialize_sampler(&group->gauge_sampler, NULL, group, server, -1, -1,
-                                   dupl->max_gauges, false, -1, -1, -1, NULL);
+
+                initialize_sampler(&group->gauge_sampler, &group->gauge_sampling_watcher, group, server,
+                                   dupl->gauge_sampling_threshold, dupl->gauge_sampling_window,
+                                   dupl->max_gauges, false, -1, -1, -1, gauge_sampling_handler);
             }
 
             if (dupl->ingress_blacklist != NULL) {
@@ -569,8 +581,6 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
 
             monitor_group->ring = ring;
             group_prefix_create(stat, monitor_group);
-
-            monitor_group->flagged_lines = 0;
 
             if (stat->ingress_blacklist != NULL) {
                 if (group_filter_create(stat->ingress_blacklist, &monitor_group->ingress_blacklist) != 0)

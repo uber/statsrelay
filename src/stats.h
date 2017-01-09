@@ -66,6 +66,9 @@ typedef struct {
 	/** dedicated event timer for counter roll-ups */
 	ev_timer counter_sampling_watcher;
 
+	/** dedicated event timer for counter roll-ups */
+	ev_timer gauge_sampling_watcher;
+
 	/* Stats */
 	uint64_t relayed_lines;
 	uint64_t filtered_lines;

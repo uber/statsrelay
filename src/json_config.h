@@ -76,9 +76,20 @@ struct additional_config {
 
     /**
      * reservoir_size: size of the reservoir, number of samples kept in memory for every
-     * timer being sampled
+     * timer being sampled. only applies to samplers
      */
     int reservoir_size;
+
+    /**
+     * gauge_sampling_threshold: start sampling messages received at a rate greater than
+     * this quantity over the gauge_sampling_window
+     */
+    int gauge_sampling_threshold;
+
+    /**
+     * gauges_sampling_window: number of seconds to sample gauges before flushing internally
+     */
+    int gauge_sampling_window;
 
     /**
      * hm_key_expiration_frequency_in_seconds: frequency with which purging of expired items in hashmap
