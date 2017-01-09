@@ -91,6 +91,10 @@ add_executable(test_timer_sampler ${SOURCE_FILES} src/tests/test_timer_sampler.c
 target_link_libraries(test_timer_sampler ev pcre jansson)
 add_test(NAME test_timer_sampler COMMAND test_timer_sampler)
 
+add_executable(test_gauge_sampler ${SOURCE_FILES} src/tests/test_gauge_sampler.c)
+target_link_libraries(test_gauge_sampler ev pcre jansson)
+add_test(NAME test_gauge_sampler COMMAND test_gauge_sampler)
+
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND}
         DEPENDS test_vector test_hashring test_hashlib)
 

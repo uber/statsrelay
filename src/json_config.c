@@ -112,6 +112,9 @@ static int parse_additional_config(const json_t* additional_config, struct proto
         aconfig->timer_flush_min_max = get_bool_orelse(additional_config, "timer_flush_min_max", false);
         aconfig->reservoir_size = get_int_orelse(additional_config, "reservoir_size", 100);
 
+        aconfig->gauge_sampling_threshold = get_int_orelse(additional_config, "gauge_sampling_threshold", -1);
+        aconfig->gauge_sampling_window = get_int_orelse(additional_config, "gauge_sampling_window", -1);
+
         // parse the cardinality limits (only applied when sampling is enabled)
         aconfig->max_counters = get_int_orelse(additional_config, "counter_cardinality", 10000);
         aconfig->max_timers = get_int_orelse(additional_config, "timer_cardinality", 10000);

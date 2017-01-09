@@ -103,6 +103,7 @@ int buffer_consume_until(buffer_t *b, char token)
         if (at_head[0] == token || c == -1)
             break;
     }
+    return 0;
 }
 
 int buffer_produced(buffer_t *b, size_t amt)

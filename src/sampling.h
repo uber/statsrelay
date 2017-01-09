@@ -15,19 +15,12 @@ typedef enum {
     SAMPLER_FLAGGED = 2
 } sampling_result;
 
-
 typedef void(sampler_flush_cb)(void* data, const char* key, const char* line, int len);
-
-void expiry_callback_handler(struct ev_loop* , struct ev_timer* , int);
 
 int sampler_init(sampler_t** sampler, int threshold, int window, int cardinality,
                  int reservoir_size, bool timer_flush_min_max, int hm_expiry_frequency,
                  int hm_ttl);
 
-/**
- * Registered callback for hashmap stale key expiry.
- */
-static int expiry_callback(void* _s, const char* key, void* _value, void * metadata);
 
 /**
  * Consider a statsd counter for sampling - based on its name and validation
@@ -94,17 +87,5 @@ bool is_expiry_watcher_pending(sampler_t *sampler);
  * Return the frequency of expiration timer (default -1)
  */
 int sampler_expiration_timer_frequency(sampler_t  *sampler);
-
-/**
- * Decides whether the metric should be flagged
- */
-static bool _flag_incoming_metric(sampler_t* sampler);
-
-/**
- * Boolean flag that sampler flush callback uses to decide
- * if the calculated true upper and lower values for a sampled
- * timer needs flushing
- */
-bool flush_upper_lower(sampler_t* sampler);
 
 #endif //STATSRELAY_SAMPLING_H

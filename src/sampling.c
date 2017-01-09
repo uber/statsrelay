@@ -102,41 +102,13 @@ struct sample_bucket {
     double reservoir[];
 };
 
-
-int sampler_init(sampler_t** sampler, int threshold, int window, int cardinality, int reservoir_size,
-                 bool timer_flush_min_max, int hm_expiry_frequency, int hm_ttl) {
-
-    struct sampler *sam = calloc(1, sizeof(struct sampler));
-
-    hashmap_init(HM_SIZE, &sam->map);
-
-    sam->threshold = threshold;
-    sam->window = window;
-    sam->cardinality = cardinality;
-    sam->reservoir_size = reservoir_size;
-    sam->timer_flush_min_max = timer_flush_min_max;
-    sam->base.hm_expiry_frequency = hm_expiry_frequency;
-    // save this to pass into hashmap_put
-    sam->base.hm_ttl = hm_ttl;
-
-    if (hm_ttl != -1) {
-        struct ev_loop *loop = ev_default_loop(0);
-        ev_timer_init(&sam->base.map_expiry_timer, expiry_callback_handler, sam->base.hm_expiry_frequency, 0);
-        sam->base.map_expiry_timer.data = (void*)sam;
-        ev_timer_start(loop, &sam->base.map_expiry_timer);
-    }
-
-#ifdef __APPLE__
-    time_t t = time(NULL);
-    sam->randbuf[0] = t & 0xFFFF;
-    sam->randbuf[1] = (t >> 16) & 0xFFFF;
-    sam->randbuf[2] = (t >> 32) & 0xFFFF;
-#else
-    srand48_r(time(NULL), &sam->randbuf);
-#endif
-
-    *sampler = sam;
-    return 0;
+/**
+ * Boolean flag that sampler flush callback uses to decide
+ * if the calculated true upper and lower values for a sampled
+ * timer needs flushing
+ */
+static bool flush_upper_lower(sampler_t* sampler) {
+    return sampler->timer_flush_min_max;
 }
 
 static time_t timestamp() {
@@ -166,8 +138,23 @@ static int sampler_update_callback(void* _s, const char* key, void* _value, void
     } else if (bucket->sampling && bucket->last_window_count <= sampler->threshold) {
         bucket->sampling = false;
         bucket->reservoir_index = 0;
+        char *type;
+        switch (bucket->type) {
+        case METRIC_COUNTER:
+            type = "counter";
+            break;
+        case METRIC_TIMER:
+            type = "timer";
+            break;
+        case METRIC_GAUGE:
+            type = "gauge";
+            break;
+        default:
+            type = "unknown/other";
+            break;
+        }
         stats_debug_log("stopped %s sampling '%s'",
-                        bucket->type == METRIC_COUNTER ? "counter": "timer",
+                        type,
                         key);
     }
 
@@ -186,7 +173,7 @@ static int expiry_callback(void* _s, const char* key, void* _value, void *metada
     time_t now = timestamp();
 
     if ((now - bucket->last_modified_at) > (*ttl)) {
-        stats_log("deleting key %s", key);
+        stats_log("hashmap: deleting key %s", key);
         hashmap_delete(sampler->map, key);
     }
 
@@ -204,6 +191,10 @@ static int sampler_flush_callback(void* _s, const char* key, void* _value, void*
 
     if (bucket->type == METRIC_COUNTER) {
         len = sprintf(line_buffer, "%s:%g|c@%g\n", key, bucket->sum / bucket->count, 1.0 / bucket->count);
+        len -= 1; /* \n is not part of the length */
+        flush_data->cb(flush_data->data, key, line_buffer, len);
+    } else if (bucket->type == METRIC_GAUGE) {
+        len = sprintf(line_buffer, "%s:%g|g\n", key, bucket->sum / bucket->count);
         len -= 1; /* \n is not part of the length */
         flush_data->cb(flush_data->data, key, line_buffer, len);
     } else if (bucket->type == METRIC_TIMER) {
@@ -249,17 +240,57 @@ static int sampler_flush_callback(void* _s, const char* key, void* _value, void*
     return 0;
 }
 
-static bool _flag_incoming_metric(sampler_t* sampler) {
+/**
+ * Decides whether the metric should be flagged as being over
+ * cardinality
+ */
+static bool flag_incoming_metric(sampler_t* sampler) {
     return hashmap_size(sampler->map) >= sampler->cardinality;
 }
 
-void expiry_callback_handler(struct ev_loop *loop, struct ev_timer *timer, int events) {
+static void expiry_callback_handler(struct ev_loop *loop, struct ev_timer *timer, int events) {
     sampler_t* sampler = (sampler_t*)timer->data;
 
     // Iterate over items and callback.
     hashmap_iter(sampler->map, expiry_callback, (void *)timer->data);
     ev_timer_set(&sampler->base.map_expiry_timer, sampler->base.hm_expiry_frequency, 0.0);
     ev_timer_start(loop, &sampler->base.map_expiry_timer);
+}
+
+int sampler_init(sampler_t** sampler, int threshold, int window, int cardinality, int reservoir_size,
+                 bool timer_flush_min_max, int hm_expiry_frequency, int hm_ttl) {
+
+    struct sampler *sam = calloc(1, sizeof(struct sampler));
+
+    hashmap_init(HM_SIZE, &sam->map);
+
+    sam->threshold = threshold;
+    sam->window = window;
+    sam->cardinality = cardinality;
+    sam->reservoir_size = reservoir_size;
+    sam->timer_flush_min_max = timer_flush_min_max;
+    sam->base.hm_expiry_frequency = hm_expiry_frequency;
+    // save this to pass into hashmap_put
+    sam->base.hm_ttl = hm_ttl;
+
+    if (hm_ttl != -1) {
+        struct ev_loop *loop = ev_default_loop(0);
+        ev_timer_init(&sam->base.map_expiry_timer, expiry_callback_handler, sam->base.hm_expiry_frequency, 0);
+        sam->base.map_expiry_timer.data = (void*)sam;
+        ev_timer_start(loop, &sam->base.map_expiry_timer);
+    }
+
+#ifdef __APPLE__
+    time_t t = time(NULL);
+    sam->randbuf[0] = t & 0xFFFF;
+    sam->randbuf[1] = (t >> 16) & 0xFFFF;
+    sam->randbuf[2] = (t >> 32) & 0xFFFF;
+#else
+    srand48_r(time(NULL), &sam->randbuf);
+#endif
+
+    *sampler = sam;
+    return 0;
 }
 
 void sampler_flush(sampler_t* sampler, sampler_flush_cb cb, void* data) {
@@ -300,7 +331,7 @@ sampling_result sampler_consider_counter(sampler_t* sampler, const char* name, v
     hashmap_get(sampler->map, name, (void**)&bucket);
     if (bucket == NULL) {
         // Only flag if its a new metric
-        if (_flag_incoming_metric(sampler)) {
+        if (flag_incoming_metric(sampler)) {
             stats_debug_log("flagging incoming counter metric %s", name);
             return SAMPLER_FLAGGED;
         }
@@ -315,6 +346,7 @@ sampling_result sampler_consider_counter(sampler_t* sampler, const char* name, v
         hashmap_put(sampler->map, name, (void*)bucket, NULL);
     } else {
         bucket->last_window_count++;
+        bucket->last_modified_at = timestamp();
 
         /* Circuit break and enable sampling mode */
         if (!bucket->sampling && bucket->last_window_count > sampler->threshold) {
@@ -332,7 +364,6 @@ sampling_result sampler_consider_counter(sampler_t* sampler, const char* name, v
             bucket->sum += value;
             bucket->count += count;
 
-            bucket->last_modified_at = timestamp();
             return SAMPLER_SAMPLING;
         }
     }
@@ -349,7 +380,7 @@ sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, val
     hashmap_get(sampler->map, name, (void**)&bucket);
     if (bucket == NULL) {
         // Only flag if its a new metric
-        if (_flag_incoming_metric(sampler)) {
+        if (flag_incoming_metric(sampler)) {
             stats_debug_log("flagging incoming timer metric %s", name);
             return SAMPLER_FLAGGED;
         }
@@ -372,6 +403,7 @@ sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, val
         hashmap_put(sampler->map, name, (void*)bucket, (void*)&sampler->base.hm_ttl);
     } else {
         bucket->last_window_count++;
+        bucket->last_modified_at = timestamp();
 
         /* Circuit break and enable sampling mode */
         if (!bucket->sampling && bucket->last_window_count > sampler->threshold) {
@@ -381,7 +413,6 @@ sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, val
 
         if (bucket->sampling) {
             double value = parsed->value;
-            bucket->last_modified_at = timestamp();
 
             /**
              * update the upper and lower
@@ -453,24 +484,52 @@ sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, val
 
 sampling_result sampler_consider_gauge(sampler_t* sampler, const char* name, validate_parsed_result_t* parsed) {
     struct sample_bucket* bucket = NULL;
+
+    if (parsed->type != METRIC_GAUGE) {
+        return SAMPLER_NOT_SAMPLING;
+    }
+
     hashmap_get(sampler->map, name, (void**)&bucket);
     if (bucket == NULL) {
         // Only flag if its a new metric
-        if (_flag_incoming_metric(sampler)) {
+        if (flag_incoming_metric(sampler)) {
             stats_debug_log("flagging incoming gauge metric %s", name);
             return SAMPLER_FLAGGED;
         }
         /* Intialize a new bucket */
         bucket = malloc(sizeof(struct sample_bucket));
         bucket->sampling = false;
-        bucket->last_window_count = 1;
+        bucket->last_window_count = 0;
         bucket->type = parsed->type;
         bucket->sum = 0;
         bucket->count = 0;
         bucket->last_modified_at = timestamp();
         hashmap_put(sampler->map, name, (void*)bucket, NULL);
     }
-   
+
+    bucket->last_modified_at = timestamp();
+    if (sampler->threshold <= 0) {
+        return SAMPLER_NOT_SAMPLING;
+    }
+
+    bucket->last_window_count++;
+
+    /* Circuit break and enable sampling mode */
+    if (!bucket->sampling && bucket->last_window_count > sampler->threshold) {
+        stats_debug_log("started gauge sampling '%s'", name);
+        bucket->sampling = true;
+    }
+
+    if (bucket->sampling) {
+        double value = parsed->value;
+        double count = 1.0;
+
+        bucket->sum += value;
+        bucket->count += count;
+
+        return SAMPLER_SAMPLING;
+    }
+
     return SAMPLER_NOT_SAMPLING;
 }
 
@@ -501,8 +560,4 @@ bool is_expiry_watcher_active(sampler_t* sampler) {
 
 bool is_expiry_watcher_pending(sampler_t* sampler) {
     return sampler->base.hm_expiry_frequency != -1 ? ev_is_pending(&sampler->base.map_expiry_timer) : 0;
-}
-
-bool flush_upper_lower(sampler_t* sampler) {
-    return sampler->timer_flush_min_max;
 }
