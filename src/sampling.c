@@ -343,7 +343,7 @@ sampling_result sampler_consider_counter(sampler_t* sampler, const char* name, v
         bucket->sum = 0;
         bucket->count = 0;
         bucket->last_modified_at = timestamp();
-        hashmap_put(sampler->map, name, (void*)bucket, NULL);
+        hashmap_put(sampler->map, name, (void*)bucket, (void*)&sampler->base.hm_ttl);
     } else {
         bucket->last_window_count++;
         bucket->last_modified_at = timestamp();
@@ -504,7 +504,7 @@ sampling_result sampler_consider_gauge(sampler_t* sampler, const char* name, val
         bucket->sum = 0;
         bucket->count = 0;
         bucket->last_modified_at = timestamp();
-        hashmap_put(sampler->map, name, (void*)bucket, NULL);
+        hashmap_put(sampler->map, name, (void*)bucket, (void*)&sampler->base.hm_ttl);
     }
 
     bucket->last_modified_at = timestamp();
