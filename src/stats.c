@@ -47,6 +47,7 @@ struct stats_server_t {
 	hashring_t ring;
 	protocol_parser_t parser;
 	validate_line_validator_t validator;
+	key_normalizer_t normalizer;
 };
 
 typedef struct {
@@ -214,7 +215,8 @@ static void kill_backend(void *data) {
 stats_server_t *stats_server_create(struct ev_loop *loop,
 				    struct proto_config *config,
 				    protocol_parser_t parser,
-				    validate_line_validator_t validator) {
+				    validate_line_validator_t validator,
+				    key_normalizer_t normalizer) {
 	stats_server_t *server;
 	server = malloc(sizeof(stats_server_t));
 	if (server == NULL) {
@@ -309,6 +311,12 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss) {
 	}
 	memcpy(key_buffer, line, key_len);
 	key_buffer[key_len] = '\0';
+
+	if (ss->normalizer != NULL) {
+		if (ss->normalizer(key_buffer, key_len) != 0) {
+			return 1;
+		}
+	}
 
 	stats_backend_t *backend = hashring_choose(ss->ring, key_buffer, NULL);
 
