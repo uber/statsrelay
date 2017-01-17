@@ -1,4 +1,4 @@
-FROM lyft/opsbase:b16fe75ff8ecb1f241c80716cfd28decf5f03c6d
+FROM lyft/opsbase:255aae4fd635100e7c1def0bc6fe0ae2576bc096
 COPY . /code/statsrelay-private
 RUN apt-get update -y && \
     apt-get install -y software-properties-common python-software-properties && \
