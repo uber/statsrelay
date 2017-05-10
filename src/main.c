@@ -9,6 +9,7 @@
 #ifdef HAVE_MALLOC_H
 #include <malloc.h>
 #endif
+#include <stdlib.h>
 
 
 struct server_collection servers;
@@ -201,10 +202,16 @@ int main(int argc, char **argv, char **envp) {
 
 #ifdef HAVE_MALLOC_H
     /**
+     * Send detailed error message, stack trace, and memory
+     * mappings to stderr
+     */
+    setenv("LIBC_FATAL_STDERR_", "1", 1);
+
+    /**
      *  detects heap corruption, diagnostic
      *  will be logged.
      */
-    if (mallopt(M_CHECK_ACTION, 2) != 1) {
+    if (mallopt(M_CHECK_ACTION, 3) != 1) {
         stats_error_log("mallopt() failed: MALLOC_CHECK_ not set");
     }
 #endif
