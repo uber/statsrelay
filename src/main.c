@@ -204,7 +204,7 @@ int main(int argc, char **argv, char **envp) {
      *  detects heap corruption, diagnostic
      *  will be logged.
      */
-    if (mallopt(M_CHECK_ACTION, 1) != 1) {
+    if (mallopt(M_CHECK_ACTION, 2) != 1) {
         stats_error_log("mallopt() failed: MALLOC_CHECK_ not set");
     }
 #endif
