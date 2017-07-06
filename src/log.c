@@ -5,12 +5,13 @@
 #include <stdlib.h>
 #include <syslog.h>
 
-#define STATSRELAY_LOG_BUF_SIZE 256
+#define STATSRELAY_LOG_BUF_SIZE 4196
+#define STATSRELAY_LOG_MAX_BUF_SIZE (4196*32)
 
 static bool g_verbose = 0;
 static bool g_syslog = true;
 static enum statsrelay_log_level g_level;
-static int fmt_buf_size = 0;
+static size_t fmt_buf_size = 0;
 static char *fmt_buf = NULL;
 
 void stats_log_verbose(bool verbose) {
@@ -42,7 +43,13 @@ void stats_vlog(const char *prefix,
     // Keep trying to vsnprintf until we have a sufficiently sized buffer
     // allocated.
     while (1) {
+        // Note: if buffer expands, we re-invoke vsnprintf, which requires
+        // a new copy fo the va_list, as iterating a va_list is destructive..
+        // Uses the C99 va_copy macro.
+        va_list args;
+        va_copy(args, ap);
         fmt_len = vsnprintf(fmt_buf, fmt_buf_size, format, ap);
+        va_end(args);
 
         if (fmt_len < 0) {
             return;  // output error (shouldn't happen for vs* functions)
@@ -50,11 +57,18 @@ void stats_vlog(const char *prefix,
             break;  // vsnprintf() didn't truncate
         }
 
-        fmt_buf_size <<= 1;  // double size
+        size_t new_fmt_buf_size = fmt_buf_size << 1;  // double size
 
-        if ((np = realloc(fmt_buf, fmt_buf_size)) == NULL) {
-            goto alloc_failure;
+        if (fmt_buf_size <= STATSRELAY_LOG_MAX_BUF_SIZE) {
+            if ((np = realloc(fmt_buf, new_fmt_buf_size)) == NULL) {
+                goto alloc_failure;
+            }
+        } else {
+            fmt_buf[fmt_len-1] = '\0'; // Force null termination and break
+            break;
         }
+
+        fmt_buf_size = new_fmt_buf_size;
         fmt_buf = np;
     }
 
