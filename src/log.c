@@ -48,7 +48,7 @@ void stats_vlog(const char *prefix,
         // Uses the C99 va_copy macro.
         va_list args;
         va_copy(args, ap);
-        fmt_len = vsnprintf(fmt_buf, fmt_buf_size, format, ap);
+        fmt_len = vsnprintf(fmt_buf, fmt_buf_size, format, args);
         va_end(args);
 
         if (fmt_len < 0) {
