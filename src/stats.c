@@ -22,8 +22,6 @@ static void stats_write_to_backend(const char *line,
                    size_t key_len,
                    stats_backend_group_t* group);
 
-
-
 // callback after bytes are sent
 static int stats_sent(void *tcpclient,
         enum tcpclient_event event,
@@ -305,7 +303,7 @@ static void group_prefix_create(struct additional_config* config, stats_backend_
 }
 
 static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, int events) {
-    ev_tstamp timeout = 15.0;
+    ev_tstamp timeout = 30.0;
     stats_server_t *server= (stats_server_t *)watcher->data;
 
     ev_timer_stop(loop, &server->stats_flusher);
@@ -355,10 +353,21 @@ static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, 
 
     for (int i = 0; i < server->rings->size; i++) {
         stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
-        buffer_produced(response,
-                snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-                    "group_%i.flagged_lines:%" PRIu64 "|g\n",
-                    i, group->flagged_lines));
+
+        if (group->flagged_lines > 0) {
+            // reduce the number of per-instances stats in wavefront
+            // only track this metric when we have been actively
+            // flagging metrics
+            buffer_produced(response,
+                            snprintf((char *) buffer_tail(response), buffer_spacecount(response),
+                                     "group_%i.flagged_lines:%"
+                                             PRIu64
+                                             "|g\n",
+                                     i, group->flagged_lines));
+            // send count to statsd monitor
+            // cluster and reset the gauge
+            group->flagged_lines = 0;
+        }
         buffer_produced(response,
                 snprintf((char *)buffer_tail(response), buffer_spacecount(response),
                     "group_%i.filtered_lines:%" PRIu64 "|g\n",
@@ -808,12 +817,6 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
         } else if (r == SAMPLER_SAMPLING) {
             continue;
         }
-        /**
-         * reset the error counter
-         * when we start sending
-         * stats to the backends
-         */
-        group->flagged_lines = 0;
         stats_write_to_backend(line, len, key_buffer, key_hash, key_len, group);
     }
 
