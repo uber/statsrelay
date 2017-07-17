@@ -336,6 +336,10 @@ sampling_result sampler_consider_counter(sampler_t* sampler, const char* name, v
         }
         /* Intialize a new bucket */
         bucket = malloc(sizeof(struct sample_bucket));
+        if (bucket == NULL) {
+            // Memory allocation has failed - fail by flagging metrics
+            return SAMPLER_FLAGGED;
+        }
         bucket->sampling = false;
         bucket->last_window_count = 1;
         bucket->type = parsed->type;
@@ -385,6 +389,10 @@ sampling_result sampler_consider_timer(sampler_t* sampler, const char* name, val
         }
         /* Intialize a new bucket */
         bucket = malloc(sizeof(struct sample_bucket) + (sizeof(double) * sampler->reservoir_size));
+        if (bucket == NULL) {
+            // Memory allocation has failed - fail by flagging metrics
+            return SAMPLER_FLAGGED;
+        }
         bucket->sampling = false;
         bucket->reservoir_index = 0;
         bucket->last_window_count = 0;
@@ -497,6 +505,10 @@ sampling_result sampler_consider_gauge(sampler_t* sampler, const char* name, val
         }
         /* Intialize a new bucket */
         bucket = malloc(sizeof(struct sample_bucket));
+        if (bucket == NULL) {
+            // Memory allocation has failed - fail by flagging metrics
+            return SAMPLER_FLAGGED;
+        }
         bucket->sampling = false;
         bucket->last_window_count = 0;
         bucket->type = parsed->type;
