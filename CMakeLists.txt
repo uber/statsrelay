@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 project(statsrelay)
-set(PACKAGE_VERSION "2.4.4")
+set(PACKAGE_VERSION "2.4.5")
 set(PACKAGE_STRING "statsrelay ${PACKAGE_VERSION}")
 
 enable_testing()
