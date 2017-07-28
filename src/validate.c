@@ -25,6 +25,11 @@ int validate_statsd(const char *line, size_t len, validate_parsed_result_t* resu
     char *start, *end;
     char *err;
 
+    if (line_copy == NULL) {
+        stats_log("validate: allocation failure. marking invalid line");
+        goto statsd_err;
+    }
+
     start = line_copy;
     plen = len;
     end = memchr(start, ':', plen);
