@@ -49,15 +49,14 @@ static void graceful_shutdown(struct ev_loop *loop, ev_signal *w, int revents) {
 
     free(buffer);
     stats_log("main: received signal, shutting down.");
-    destroy_server_collection(&servers);
+
     ev_break(loop, EVBREAK_ALL);
 }
 
 static void quick_shutdown(struct ev_loop *loop, ev_signal *w, int revents) {
     stats_log("main: received signal, immediate shut down.");
     stop_accepting_connections(&servers);
-    shutdown_client_sockets(&servers);
-    destroy_server_collection(&servers);
+
     ev_break(loop, EVBREAK_ALL);
 }
 
@@ -81,8 +80,7 @@ static void hot_restart(struct ev_loop *loop, ev_signal *w, int revents) {
         stats_error_log("main: failed to fork() on SIGUSR2!");
         stats_log("main: shutting down master.");
         stop_accepting_connections(&servers);
-        shutdown_client_sockets(&servers);
-        destroy_server_collection(&servers);
+
         ev_break(loop, EVBREAK_ALL);
 
         if (pid_file != NULL) {
@@ -298,8 +296,9 @@ int main(int argc, char **argv, char **envp) {
     ev_signal_init(&sigusr2_watcher, hot_restart, SIGUSR2);
     ev_signal_start(loop, &sigusr2_watcher);
 
-    stats_log("main: Starting event loop");
+    stats_log("main(%d): Starting event loop.", getpid());
     ev_run(loop, 0);
+    stats_log("main(%d): Loop terminated. Goodbye.", getpid());
 
 success:
     stop_accepting_connections(&servers);

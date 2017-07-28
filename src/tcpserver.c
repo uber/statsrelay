@@ -345,9 +345,10 @@ int tcpserver_bind(tcpserver_t *server,
     return 0;
 }
 
-// This step is used to send a shutdown signal to the connected
-// clients and allowing time to drain read buffer of whatever
-// was already send over the tcp socket
+/**
+ * This step is used to send a shutdown signal to the connected
+ * clients.
+ */
 static void tcpsession_client_close(tcplistener_t *listener) {
     tcpsession_t *session;
     int vector_sz, i, count = 0;
