@@ -175,10 +175,10 @@ static int expiry_callback(void* _s, const char* key, void* _value, void *metada
     if ((now - bucket->last_modified_at) > (*ttl)) {
         if (_value)
             free(_value);
-        hashmap_delete(sampler->map, key);
+        return HASHMAP_ITER_DELETE;
     }
 
-    return 0;
+    return HASHMAP_ITER_CONTINUE;
 }
 
 static int sampler_flush_callback(void* _s, const char* key, void* _value, void* metadata) {

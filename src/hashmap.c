@@ -175,6 +175,7 @@ static int hashmap_insert_table(hashmap_entry *table, int table_size, char *key,
         entry->key = (key);
         entry->value = value;
         entry->metadata = metadata;
+        entry->next = NULL;
         // We have a last value, need to link against it with our new
         // value.
     } else if (last_entry) {
@@ -300,12 +301,15 @@ int hashmap_delete(hashmap *map, const char *key) {
                     entry->key = n->key;
                     entry->value = n->value;
                     entry->next = n->next;
+                    entry->metadata = n->metadata;
                     free(n);
 
                     // Zero everything out
                 } else {
                     entry->key = NULL;
                     entry->value = NULL;
+                    entry->next = NULL;
+                    entry->metadata = NULL;
                 }
 
             } else {
@@ -364,12 +368,9 @@ int hashmap_clear(hashmap *map) {
 /**
  * Iterates through the key/value pairs in the map, invoking a
  * callback for each. The call back gets a key, value for each and
- * returns an integer stop value.  If the callback returns 1, then the
- * iteration stops.
- *
- * Calling hashmap_delete is safe (if not inefficient) from this
- * function. Calling any insertion function will lead to undefined
- * iteration order.
+ * returns an integer stop value.  If the callback returns
+ * HASHMAP_ITER_STOP, then the iteration stops. The current key can be
+ * removed by return HASHMAP_ITER_DELETE.
  *
  * @arg map The hashmap to iterate over
  * @arg cb The callback function to invoke
@@ -378,20 +379,60 @@ int hashmap_clear(hashmap *map) {
  */
 int hashmap_iter(hashmap *map, hashmap_callback cb, void *data) {
     hashmap_entry *entry;
-    int should_break = 0;
-    for (int i = 0; i < map->table_size && !should_break; i++) {
-        entry = map->table + i;
-        while (entry && entry->key && !should_break) {
-            /* Grab the next entry to avoid issues where the entry may
-             * be freed by the callback. This is pretty inefficient
-             * way to handle deletes but prevents a class of bugs from
-             * code that decides to do that anyway
-             */
-            hashmap_entry *next_entry = entry->next;
-            /* Invoke the callback */
-            should_break = cb(data, entry->key, entry->value, entry->metadata);
 
-            entry = next_entry;
+    int should_break = 0;
+    for (int i = 0; i < map->table_size && should_break != 1; i++) {
+
+        hashmap_entry *last_entry = NULL;
+        entry = map->table + i;
+
+        while (entry != NULL && entry->key && !should_break) {
+
+            int cb_ret = cb(data, entry->key, entry->value, entry->metadata);
+            if (cb_ret == HASHMAP_ITER_DELETE) { /* Delete this node */
+                /* Free the key buffer */
+                free(entry->key);
+                entry->key = NULL;
+
+                if (last_entry == NULL) {
+                    /* This is the first item in the table, we zip
+                     * left to right and copy next to the first slot */
+                    if (entry->next) {
+                        hashmap_entry *n = entry->next;
+                        entry->key = n->key;
+                        entry->value = n->value;
+                        entry->next = n->next;
+                        entry->metadata = n->metadata;
+                        free(n);
+                        /* Do not record last_entry - we moved
+                         * everything one left, and could do so
+                         * again */
+
+                    } else {
+                        /* This is the only item in the chain, zero
+                         * the item slot with no zipping */
+                        entry->key = NULL;
+                        entry->value = NULL;
+                        entry->next = NULL;
+                        entry->metadata = NULL;
+                    }
+                } else {
+                    /* We are in the middle or end of a chain, remove
+                     * the element and advance forward one */
+                    last_entry->next = entry->next;
+                    free(entry);
+                    entry = last_entry->next;
+                    /* Do not move last_entry - it didn't change */
+                }
+            } else {
+                /* No delete, move forward in the list */
+                should_break = cb_ret;
+                /* Move last_entry to allow removals in the list */
+                last_entry = entry;
+                entry = entry->next;
+            }
+
+
         }
     }
     return should_break;
