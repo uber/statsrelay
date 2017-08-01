@@ -362,10 +362,15 @@ int hashmap_clear(hashmap *map) {
 }
 
 /**
- * Iterates through the key/value pairs in the map,
- * invoking a callback for each. The call back gets a
- * key, value for each and returns an integer stop value.
- * If the callback returns 1, then the iteration stops.
+ * Iterates through the key/value pairs in the map, invoking a
+ * callback for each. The call back gets a key, value for each and
+ * returns an integer stop value.  If the callback returns 1, then the
+ * iteration stops.
+ *
+ * Calling hashmap_delete is safe (if not inefficient) from this
+ * function. Calling any insertion function will lead to undefined
+ * iteration order.
+ *
  * @arg map The hashmap to iterate over
  * @arg cb The callback function to invoke
  * @arg data Opaque handle passed to the callback
@@ -377,9 +382,16 @@ int hashmap_iter(hashmap *map, hashmap_callback cb, void *data) {
     for (int i = 0; i < map->table_size && !should_break; i++) {
         entry = map->table + i;
         while (entry && entry->key && !should_break) {
-            // Invoke the callback
+            /* Grab the next entry to avoid issues where the entry may
+             * be freed by the callback. This is pretty inefficient
+             * way to handle deletes but prevents a class of bugs from
+             * code that decides to do that anyway
+             */
+            hashmap_entry *next_entry = entry->next;
+            /* Invoke the callback */
             should_break = cb(data, entry->key, entry->value, entry->metadata);
-            entry = entry->next;
+
+            entry = next_entry;
         }
     }
     return should_break;
