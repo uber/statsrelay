@@ -393,6 +393,10 @@ int hashmap_iter(hashmap *map, hashmap_callback cb, void *data) {
                 /* Free the key buffer */
                 free(entry->key);
                 entry->key = NULL;
+                /**
+                 * decrement item count to reflect delete completion
+                 */
+                map->count -= 1;
 
                 if (last_entry == NULL) {
                     /* This is the first item in the table, we zip
