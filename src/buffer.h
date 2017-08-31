@@ -14,7 +14,7 @@ typedef struct buffer buffer_t;
 
 // Init a buffer to default size
 int buffer_init(buffer_t *);
-int buffer_init_contents(buffer_t *, const char *, size_t);
+int buffer_init_contents(buffer_t *, const char *, size_t); // UNUSED
 // Create a new buffer at specified size
 buffer_t *create_buffer(size_t size);
 
@@ -47,7 +47,10 @@ int buffer_consume_until(buffer_t *b, char token);
 int buffer_produced(buffer_t *, size_t);
 
 // Sets to the new contents, expanding if necessary
-int buffer_set(buffer_t *, const char *data, size_t size);
+int buffer_set(buffer_t *, const char *data, size_t size); // UNUSED
+
+// Append data to the buffer, rejects if not enough space
+int buffer_append(buffer_t *, const char *data, size_t size); // UNUSED - only used in test_buffer
 
 // Copy data from head to the beginning of the buffer
 int buffer_realign(buffer_t *);
