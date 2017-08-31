@@ -125,6 +125,15 @@ int buffer_set(buffer_t *b, const char *data, size_t size)
     return buffer_produced(b, size);
 }
 
+int buffer_append(buffer_t *b, const char *data, size_t size)
+{
+    if (size > buffer_spacecount(b))
+        return -1;
+
+    memcpy(b->tail, data, size);
+    return buffer_produced(b, size);
+}
+
 int buffer_realign(buffer_t *b)
 {
     if (b->tail != b->head) {
