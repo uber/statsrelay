@@ -14,6 +14,11 @@ static char *valid_stat_types[6] = {
 };
 static size_t valid_stat_types_len = 6;
 
+// For some reason this is not in string.h, probably because it was introduced
+// there by a GNU extention:
+// "The memrchr() function  is  a  GNU  extension,  available  since  glibc 2.1.91."
+// (http://manpages.ubuntu.com/manpages/xenial/man3/memchr.3.html)
+extern void *memrchr(const void*, int, size_t);
 
 int validate_statsd(const char *line, size_t len, validate_parsed_result_t* result) {
     size_t plen;
@@ -32,7 +37,10 @@ int validate_statsd(const char *line, size_t len, validate_parsed_result_t* resu
 
     start = line_copy;
     plen = len;
-    end = memchr(start, ':', plen);
+    // Search backwards, otherwise might eat up irrelevant data.
+    // Example: keyname.__tagname=tag:value:42.0|ms
+    //                                      ^^^^--- actual value
+    end = memrchr(start, ':', plen);
     if (end == NULL) {
         stats_log("validate: Invalid line \"%.*s\" missing ':'", len, line);
         goto statsd_err;
