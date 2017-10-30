@@ -29,6 +29,7 @@ stresstest
 test-driver
 test/devnull
 test_hashlib
+test_validate
 test_hashring
 test_stats
 statsrelay
