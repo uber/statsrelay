@@ -83,6 +83,7 @@ struct stats_server_t {
 	uint64_t bytes_recv_tcp;
 	uint64_t total_connections;
 	uint64_t malformed_lines;
+	uint64_t invalid_lines;
 	time_t last_reload;
 
 	struct proto_config *config;

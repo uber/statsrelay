@@ -351,6 +351,15 @@ static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, 
                 "global.malformed_lines:%" PRIu64 "|g\n",
                 server->malformed_lines));
 
+    if (server->invalid_lines > 0) {
+        buffer_produced(response,
+                        snprintf((char *) buffer_tail(response), buffer_spacecount(response),
+                                 "global.invalid_lines:%"
+                                         PRIu64
+                                         "|g\n",
+                                 server->invalid_lines));
+    }
+
     for (int i = 0; i < server->rings->size; i++) {
         stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
 
@@ -617,6 +626,7 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
     server->bytes_recv_udp = 0;
     server->bytes_recv_tcp = 0;
     server->malformed_lines = 0;
+    server->invalid_lines = 0;
     server->total_connections = 0;
     server->last_reload = 0;
 
@@ -749,6 +759,7 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
     validate_parsed_result_t parsed_result;
     if (ss->config->enable_validation && ss->validator != NULL) {
         if (ss->validator(line, len, &parsed_result) != 0) {
+            ss->invalid_lines++;
             return 1;
         }
     }
@@ -859,6 +870,11 @@ void stats_send_statistics(stats_session_t *session) {
             snprintf((char *)buffer_tail(response), buffer_spacecount(response),
                 "global malformed_lines gauge %" PRIu64 "\n",
                 session->server->malformed_lines));
+
+    buffer_produced(response,
+            snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+                "global invalid_lines gauge %" PRIu64 "\n",
+                session->server->invalid_lines));
 
     for (int i = 0; i < session->server->rings->size; i++) {
         stats_backend_group_t* group = (stats_backend_group_t*)session->server->rings->data[i];
