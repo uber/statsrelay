@@ -91,61 +91,63 @@ void test_memory_content() {
     FILE *words;
     words = fopen("/usr/share/dict/words", "r");
 
-    fread(buf.tail, size, 1, words);
-    buffer_produced(&buf, size);
-    buffer_consume(&buf, offset);
-    assert(buf.head == buf.ptr + offset);
-    assert(buf.tail == buf.ptr + size);
-    assert(buffer_spacecount(&buf) == 0);
+    if (words != NULL) {
+        fread(buf.tail, size, 1, words);
+        buffer_produced(&buf, size);
+        buffer_consume(&buf, offset);
+        assert(buf.head == buf.ptr + offset);
+        assert(buf.tail == buf.ptr + size);
+        assert(buffer_spacecount(&buf) == 0);
 
-    // mimic tcpclient_sendall: realign to create the offset amount of space
-    buffer_realign(&buf);
-    assert(buf.head == buf.ptr);
-    assert(buf.tail == buf.ptr + size - offset);
-    assert(buffer_spacecount(&buf) == offset);
+        // mimic tcpclient_sendall: realign to create the offset amount of space
+        buffer_realign(&buf);
+        assert(buf.head == buf.ptr);
+        assert(buf.tail == buf.ptr + size - offset);
+        assert(buffer_spacecount(&buf) == offset);
 
-    // mimic tcpclient_sendall: expand to accomodate more data
-    buffer_expand(&buf);
-    buffer_expand(&buf);
-    assert(buf.head == buf.ptr);
-    assert(buf.tail == buf.ptr + size - offset);
-    assert(buffer_spacecount(&buf) == offset + 3*size);
-    assert(buf.size == 4*size);
+        // mimic tcpclient_sendall: expand to accomodate more data
+        buffer_expand(&buf);
+        buffer_expand(&buf);
+        assert(buf.head == buf.ptr);
+        assert(buf.tail == buf.ptr + size - offset);
+        assert(buffer_spacecount(&buf) == offset + 3 * size);
+        assert(buf.size == 4 * size);
 
-    // write some more data to the buffer
-    int write_amount = 2*size + 2*offset;
-    fread(buf.tail, write_amount, 1, words);
-    buffer_produced(&buf, write_amount);
-    assert(buf.head == buf.ptr);
-    assert(buf.tail == buf.ptr + 3*size + offset);
-    assert(buffer_spacecount(&buf) == size - offset);
-    buffer_consume(&buf, 2*size);
+        // write some more data to the buffer
+        int write_amount = 2 * size + 2 * offset;
+        fread(buf.tail, write_amount, 1, words);
+        buffer_produced(&buf, write_amount);
+        assert(buf.head == buf.ptr);
+        assert(buf.tail == buf.ptr + 3 * size + offset);
+        assert(buffer_spacecount(&buf) == size - offset);
+        buffer_consume(&buf, 2 * size);
 
-    // realign again
-    buffer_realign(&buf);
-    assert(buf.head == buf.ptr);
-    assert(buf.tail == buf.ptr + size + offset);
-    assert(buffer_spacecount(&buf) == 3*size - offset);
+        // realign again
+        buffer_realign(&buf);
+        assert(buf.head == buf.ptr);
+        assert(buf.tail == buf.ptr + size + offset);
+        assert(buffer_spacecount(&buf) == 3 * size - offset);
 
-    // expand again
-    buffer_expand(&buf);
-    assert(buf.size == 8*size);
-    assert(buffer_spacecount(&buf) == 7*size - offset);
+        // expand again
+        buffer_expand(&buf);
+        assert(buf.size == 8 * size);
+        assert(buffer_spacecount(&buf) == 7 * size - offset);
 
-    // write again
-    write_amount = 2*size + 3*offset;
-    fread(buf.tail, write_amount, 1, words);
-    buffer_produced(&buf, write_amount);
-    assert(buffer_datacount(&buf) == 4*size);
+        // write again
+        write_amount = 2 * size + 3 * offset;
+        fread(buf.tail, write_amount, 1, words);
+        buffer_produced(&buf, write_amount);
+        assert(buffer_datacount(&buf) == 4 * size);
 
-    // build the expected string
-    char expected[buf.size];
-    fseek(words, 2*size + offset, SEEK_SET); // skip the consumed bit
-    fread(expected, 4*size, 1, words);
+        // build the expected string
+        char expected[buf.size];
+        fseek(words, 2 * size + offset, SEEK_SET); // skip the consumed bit
+        fread(expected, 4 * size, 1, words);
 
-    assert(strncmp(expected, buf.ptr, buffer_datacount(&buf)) == 0);
+        assert(strncmp(expected, buf.ptr, buffer_datacount(&buf)) == 0);
 
-    fclose(words);
+        fclose(words);
+    }
 }
 
 // test without realign or expand
@@ -158,24 +160,26 @@ void test_memory_content_simple() {
     FILE *words;
     words = fopen("/usr/share/dict/words", "r");
 
-    int amount = 2*offset;
-    fread(buf.tail, amount, 1, words);
-    buffer_produced(&buf, amount);
-    buffer_consume(&buf, offset);
+    if (words != NULL) {
+        int amount = 2 * offset;
+        fread(buf.tail, amount, 1, words);
+        buffer_produced(&buf, amount);
+        buffer_consume(&buf, offset);
 
-    fread(buf.tail, offset, 1, words);
-    buffer_produced(&buf, offset);
-    assert(buffer_datacount(&buf) == 2*offset);
-    assert(buffer_spacecount(&buf) == offset);
+        fread(buf.tail, offset, 1, words);
+        buffer_produced(&buf, offset);
+        assert(buffer_datacount(&buf) == 2 * offset);
+        assert(buffer_spacecount(&buf) == offset);
 
-    // build the expected string
-    char expected[buf.size];
-    fseek(words, offset, SEEK_SET); // skip the consumed bit
-    fread(expected, buffer_datacount(&buf), 1, words);
+        // build the expected string
+        char expected[buf.size];
+        fseek(words, offset, SEEK_SET); // skip the consumed bit
+        fread(expected, buffer_datacount(&buf), 1, words);
 
-    assert(strncmp(expected, buf.head, buffer_datacount(&buf)) == 0);
+        assert(strncmp(expected, buf.head, buffer_datacount(&buf)) == 0);
 
-    fclose(words);
+        fclose(words);
+    }
 }
 
 int main(int argc, char **argv) {
