@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import contextlib
+import os.path
 import signal
 import socket
 import subprocess
@@ -78,22 +79,19 @@ class TestCase(unittest.TestCase):
         return fd.recv(65536)
 
     @contextlib.contextmanager
-    def generate_config(self, mode, suffix='.json', enable_monitoring=False):
-        if mode.lower() == 'tcp':
-            sock_type = socket.SOCK_STREAM
-            if not enable_monitoring:
-                config_path = 'tests/statsrelay' + suffix
-            else:
-                config_path = 'tests/statsrelay_{0}.{1}'.format('selfstat', suffix)
-        elif mode.lower() == 'udp':
-            sock_type = socket.SOCK_DGRAM
-            config_path = 'tests/statsrelay_udp' + suffix
-        else:
-            raise ValueError()
+    def generate_config(self, mode, filename, file_ext='.json'):
+        config_path = 'tests/{0}{1}'.format(filename, file_ext)
+        if not os.path.isfile(config_path):
+            raise ValueError("file %s not found" % config_path)
 
         try:
+            if mode.lower() == 'tcp':
+                sock_type = socket.SOCK_STREAM
+            elif mode.lower() == 'udp':
+                sock_type = socket.SOCK_DGRAM
+            else:
+                raise ValueError()
             self.bind_statsd_port = self.choose_port(sock_type)
-
             self.statsd_listener = socket.socket(socket.AF_INET, sock_type)
             self.statsd_listener.bind(('127.0.0.1', 0))
             self.statsd_listener.settimeout(SOCKET_TIMEOUT)
@@ -102,7 +100,7 @@ class TestCase(unittest.TestCase):
             if mode.lower() == 'tcp':
                 self.statsd_listener.listen(1)
 
-            new_config = tempfile.NamedTemporaryFile(suffix=suffix)
+            new_config = tempfile.NamedTemporaryFile(suffix="{}{}".format(filename, file_ext))
             with open(config_path) as config_file:
                 data = config_file.read()
             for var, replacement in [
@@ -158,13 +156,13 @@ class ConfigTestCase(TestCase):
         self.assertEqual(proc.returncode, 0)
 
     def test_check_valid_tcp_file(self):
-        with self.generate_config('tcp') as config_path:
+        with self.generate_config('tcp', filename='statsrelay') as config_path:
             proc = subprocess.Popen(['./statsrelay', '-t', config_path])
             proc.wait()
             self.assertEqual(proc.returncode, 0)
 
     def test_check_valid_udp_file(self):
-        with self.generate_config('udp') as config_path:
+        with self.generate_config('udp', filename='statsrelay_udp_with_validation') as config_path:
             proc = subprocess.Popen(['./statsrelay', '-t', config_path])
             proc.wait()
             self.assertEqual(proc.returncode, 0)
@@ -178,7 +176,7 @@ class ConfigTestCase(TestCase):
 class StatsdTestCase(TestCase):
 
     def test_tcp_with_cardinality_checks(self):
-        with self.generate_config('tcp', suffix="-cardinality.json") as config_path:
+        with self.generate_config('tcp', filename="statsrelay-cardinality") as config_path:
             MAX_UNIQUE_METRICS = 5
             self.launch_process(config_path)
             fd, addr = self.statsd_listener.accept()
@@ -225,7 +223,7 @@ class StatsdTestCase(TestCase):
             self.assertEqual(groups['flagged_lines']['1'], 15)
 
     def test_tcp_with_sampler(self):
-        with self.generate_config('tcp', suffix="-sample.json") as config_path:
+        with self.generate_config('tcp', filename="statsrelay-sample") as config_path:
             self.launch_process(config_path)
             fd, addr = self.statsd_listener.accept()
             sender = self.connect('tcp', self.bind_statsd_port)
@@ -268,7 +266,7 @@ class StatsdTestCase(TestCase):
             self.assertEqual(backends[key]['bytes_queued'], 74)
 
     def test_tcp_with_gauge_sampler(self):
-        with self.generate_config('tcp', suffix="-sample.json") as config_path:
+        with self.generate_config('tcp', filename="statsrelay-sample") as config_path:
             self.launch_process(config_path)
             fd, addr = self.statsd_listener.accept()
             sender = self.connect('tcp', self.bind_statsd_port)
@@ -312,7 +310,7 @@ class StatsdTestCase(TestCase):
 
 
     def test_tcp_with_timer_sampler(self):
-        with self.generate_config('tcp', suffix="-sample.json") as config_path:
+        with self.generate_config('tcp', filename="statsrelay-sample") as config_path:
             self.launch_process(config_path)
             fd, addr = self.statsd_listener.accept()
             sender = self.connect('tcp', self.bind_statsd_port)
@@ -369,12 +367,12 @@ class StatsdTestCase(TestCase):
                 backend = backend.split(':', 1)[1]
                 backends[backend][key] = int(value)
 
-            key = '127.0.0.1:%d:tcp' % (self.statsd_listener.getsockname()[1],)
-            self.assertEqual(backends[key]['relayed_lines'], 24)
+            key = '127.0.0.1:%d:tcp' % (self.statsd_listener.getsockname()[1])
             self.assertEqual(backends[key]['dropped_lines'], 0)
 
+
     def test_tcp_with_timer_sampler_no_flush(self):
-        with self.generate_config('tcp', suffix="-sample-no-flush.json") as config_path:
+        with self.generate_config('tcp', filename="statsrelay-sample-no-flush") as config_path:
             self.launch_process(config_path)
             fd, addr = self.statsd_listener.accept()
             sender = self.connect('tcp', self.bind_statsd_port)
@@ -416,7 +414,7 @@ class StatsdTestCase(TestCase):
             self.assertEqual(backends[key]['dropped_lines'], 0)
 
     def test_tcp_with_ingress_blacklist(self):
-        with self.generate_config('tcp', suffix="-blacklist.json") as config_path:
+        with self.generate_config('tcp', filename="statsrelay-blacklist") as config_path:
             self.launch_process(config_path)
             fd, addr = self.statsd_listener.accept()
             sender = self.connect('tcp', self.bind_statsd_port)
@@ -456,7 +454,7 @@ class StatsdTestCase(TestCase):
 
 
     def test_tcp_listener(self):
-        with self.generate_config('tcp') as config_path:
+        with self.generate_config('tcp', filename='statsrelay') as config_path:
             self.launch_process(config_path)
             fd, addr = self.statsd_listener.accept()
             sender = self.connect('udp', self.bind_statsd_port)
@@ -497,7 +495,7 @@ class StatsdTestCase(TestCase):
                              backends[key]['bytes_sent'] - 56)
 
     def test_udp_listener(self):
-        with self.generate_config('udp') as config_path:
+        with self.generate_config('udp', filename='statsrelay_udp_with_validation') as config_path:
             self.launch_process(config_path)
             sender = self.connect('udp', self.bind_statsd_port)
             sender.sendall('test:1|c\n')
@@ -533,6 +531,111 @@ class StatsdTestCase(TestCase):
             self.assertEqual(backends[key]['bytes_queued'],
                              backends[key]['bytes_sent'] - 56)
 
+
+    def test_udp_listener_invalid_lines_with_validate_flag(self):
+        with self.generate_config('udp', filename='statsrelay_udp_with_validation') as config_path:
+            self.launch_process(config_path)
+            sender = self.connect('udp', self.bind_statsd_port)
+
+            sender.sendall('test.invalid.__asg=rejectthis:1|c\n')
+            sender.sendall('test.invalid.__host=i-1234:1|c\n')
+            sender.sendall('test.valid.__status=accepted:1|c\n')
+            fd = self.statsd_listener
+
+            # shouldn't have metric flagged for bad tag usage
+            samples = [
+                'test-1.test.invalid.__asg=rejectthis:1|c\n',
+            ]
+            self.check_list_not_in_recv(fd, samples, 1024)
+
+            sender.sendall('test:1|c\n')
+            self.check_recv(fd, 'test:1|c\ntest-1.test.suffix:1|c\n')
+            # invalid 3
+            sender.sendall('test:xxx\n')
+            sender.sendall('test:1|c\n')
+            self.check_recv(fd, 'test:1|c\ntest-1.test.suffix:1|c\n')
+            sender.close()
+
+            sender = self.connect('tcp', self.bind_statsd_port)
+            sender.sendall('tcptest:1|c\n')
+            self.check_recv(fd, 'tcptest:1|c\ntest-1.tcptest.suffix:1|c\n')
+
+            sender.sendall('status\n')
+            status = sender.recv(65536)
+            sender.close()
+
+            global_status = defaultdict(dict)
+            backends = defaultdict(dict)
+            for line in status.split('\n'):
+                if not line:
+                    break
+                elif line.startswith('global'):
+                    _, metric, _, value = line.split(' ', 3)
+                    global_status[metric] = int(value)
+                elif line.startswith('backend:'):
+                    backend, key, valuetype, value = line.split(' ', 3)
+                    backend = backend.split(':', 1)[1]
+                    backends[backend][key] = int(value)
+
+            key = '127.0.0.1:%d:udp' % (self.statsd_listener.getsockname()[1],)
+            self.assertEqual(backends[key]['relayed_lines'], 8)
+            self.assertEqual(backends[key]['dropped_lines'], 0)
+            self.assertEqual(backends[key]['bytes_queued'],
+                             backends[key]['bytes_sent'] - 56)
+            self.assertEqual(global_status['invalid_lines'], 3)
+
+
+    def test_udp_listener_invalid_lines_without_validate_flag(self):
+        with self.generate_config('udp', filename='statsrelay_udp_no_validation') as config_path:
+            self.launch_process(config_path)
+            sender = self.connect('udp', self.bind_statsd_port)
+
+            sender.sendall('test.invalid.__asg=rejectthis:1|c\ntest.invalid.__host2=i-1234:1|c\ntest.valid.__status=accepted:1|c\n')
+            fd = self.statsd_listener
+
+            # shouldn't have metric flagged for bad tag usage
+            samples = [
+                'test-1.test.invalid.__asg=rejectthis.suffix:1|c\n',
+                'test-1.test.invalid.__host2=i-1234.suffix:1|c\n',
+                'test-1.test.valid.__status=accepted.suffix:1|c\n',
+            ]
+            self.check_list_in_recv(fd, samples, 1024)
+
+            sender.sendall('test:1|c\n')
+            self.check_recv(fd, 'test:1|c\ntest-1.test.suffix:1|c\n')
+            sender.sendall('test:1|c\n')
+            self.check_recv(fd, 'test:1|c\ntest-1.test.suffix:1|c\n')
+            sender.close()
+
+            sender = self.connect('tcp', self.bind_statsd_port)
+            sender.sendall('tcptest:1|c\n')
+            self.check_recv(fd, 'tcptest:1|c\ntest-1.tcptest.suffix:1|c\n')
+
+            sender.sendall('status\n')
+            status = sender.recv(65536)
+            sender.close()
+
+            global_status = defaultdict(dict)
+            backends = defaultdict(dict)
+            for line in status.split('\n'):
+                if not line:
+                    break
+                elif line.startswith('global'):
+                    _, metric, _, value = line.split(' ', 3)
+                    global_status[metric] = int(value)
+                elif line.startswith('backend:'):
+                    backend, key, valuetype, value = line.split(' ', 3)
+                    backend = backend.split(':', 1)[1]
+                    backends[backend][key] = int(value)
+
+            key = '127.0.0.1:%d:udp' % (self.statsd_listener.getsockname()[1],)
+            self.assertEqual(backends[key]['relayed_lines'], 12)
+            self.assertEqual(backends[key]['dropped_lines'], 0)
+            self.assertEqual(backends[key]['bytes_queued'],
+                             backends[key]['bytes_sent'] - 84)
+            self.assertEqual(global_status['invalid_lines'], 0)
+
+
     def test_tcp_cork(self):
         if not sys.platform.startswith('linux'):
             return
@@ -541,7 +644,7 @@ class StatsdTestCase(TestCase):
         cork_time = 0.200  # cork time is 200ms on linux
         self.tcp_cork = 'true'
         msg = 'test:1|c\ntest-1.test:1|c\n'
-        with self.generate_config('tcp') as config_path:
+        with self.generate_config('tcp', filename='statsrelay') as config_path:
             self.launch_process(config_path)
             fd, addr = self.statsd_listener.accept()
             sender = self.connect('udp', self.bind_statsd_port)
@@ -572,7 +675,7 @@ class StatsdTestCase(TestCase):
             self.assertLess(elapsed, cork_time / 2)
 
     def test_invalid_line_for_pull_request_35(self):
-        with self.generate_config('udp') as config_path:
+        with self.generate_config('udp', filename='statsrelay_udp_with_validation') as config_path:
             self.launch_process(config_path)
             sender = self.connect('udp', self.bind_statsd_port)
             sender.sendall('foo.bar:undefined|quux.quuxly.200:1c\n')
