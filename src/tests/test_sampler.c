@@ -20,11 +20,16 @@ static void print_callback(void* data, const char* key, const char* line, int le
 }
 
 int main(int argc, char** argv) {
+    filter_t* filter;
+    char *point_tags_regex = "\\.__([a-zA-Z][a-zA-Z0-9_]+)=[^.]+";
+
+    int res = filter_re_create(&filter, point_tags_regex);
+    assert(res == 0);
 
     validate_parsed_result_t c1_res, c2_res;
-    validate_statsd(c1, strlen(c1), &c1_res);
+    validate_statsd(c1, strlen(c1), &c1_res, filter, true);
     assert(c1_res.type == METRIC_COUNTER);
-    validate_statsd(c2, strlen(c2), &c2_res);
+    validate_statsd(c2, strlen(c2), &c2_res, filter, true);
     assert(c2_res.type == METRIC_COUNTER);
 
     sampler_t *sampler = NULL;

@@ -113,9 +113,15 @@ struct proto_config {
     bool send_health_metrics;
     char *bind;
     bool enable_validation;
+    bool validate_tags; /* validate tags encoded in the statsd metric, contingent on "enabled_validation" */
     bool enable_tcp_cork;
     bool auto_reconnect; /* drop connections to backend and reconnect on full buffer */
     double reconnect_threshold; /* initiate auto reconnect when send buffer hits this threshold */
+    /**
+     * A PCRE compatible regex which will validate
+     * metric containing encoded point tags for validity
+     */
+    char* point_tag_regex;
     uint64_t max_send_queue;
     list_t ring;
     list_t dupl; /* struct additional_config */

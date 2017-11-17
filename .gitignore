@@ -28,12 +28,22 @@ stamp-*
 stresstest
 test-driver
 test/devnull
+test_buffer
 test_hashlib
+test_hashmap
+test_vector
+test_sampler
 test_validate
 test_hashring
+test_timer_sampler
+test_gauge_sampler
 test_stats
 statsrelay
 stathasher
 stresstest
 *.cmake
+Testing/
+src/CMakeLists.txt
+src/cmake-build-debug/
+statsrelay.cbp
 

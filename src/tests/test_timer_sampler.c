@@ -35,12 +35,18 @@ static void print_callback(void* data, const char* key, const char* line, int le
 }
 
 int main(int argc, char** argv) {
+    filter_t* filter;
+    char *point_tags_regex = "\\.__([a-zA-Z][a-zA-Z0-9_]+)=[^.]+";
+
+    int res = filter_re_create(&filter, point_tags_regex);
+    assert(res == 0);
+
     validate_parsed_result_t t1_res, t2_res, t3_res;
-    validate_statsd(t1, strlen(t1), &t1_res);
+    validate_statsd(t1, strlen(t1), &t1_res, filter, true);
     assert(t1_res.type == METRIC_TIMER);
-    validate_statsd(t2, strlen(t2), &t2_res);
+    validate_statsd(t2, strlen(t2), &t2_res, filter, true);
     assert(t2_res.type == METRIC_TIMER);
-    validate_statsd(t3, strlen(t3), &t3_res);
+    validate_statsd(t3, strlen(t3), &t3_res, filter, true);
     assert(t3_res.type == METRIC_TIMER);
 
     sampler_t *sampler = NULL;

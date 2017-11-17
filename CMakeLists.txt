@@ -95,9 +95,23 @@ add_executable(test_gauge_sampler ${SOURCE_FILES} src/tests/test_gauge_sampler.c
 target_link_libraries(test_gauge_sampler ev pcre jansson)
 add_test(NAME test_gauge_sampler COMMAND test_gauge_sampler)
 
-add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND}
-        DEPENDS test_vector test_hashring test_hashlib)
+add_executable(test_validate ${SOURCE_FILES} src/tests/test_validate.c)
+target_link_libraries(test_validate ev pcre jansson)
+add_test(NAME test_validate COMMAND test_validate)
 
+if (CMAKE_CONFIGURATION_TYPES)
+    add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND}
+            --force-new-ctest-process --output-on-failure
+            --build-config "$<CONFIGURATION>"
+            DEPENDS test_vector test_hashring test_hashlib
+            test_validate test_timer_sampler test_gauge_sampler
+            test_sampler test_buffer test_hashmap)
+else()
+    add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND}
+            --force-new-ctest-process --output-on-failure
+            DEPENDS test_vector test_hashring test_hashlib
+            test_validate test_timer_sampler test_gauge_sampler
+            test_sampler test_buffer test_hashmap)
+endif()
 
 add_custom_target(integ python ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_endtoend.py DEPENDS statsrelay stathasher WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
-

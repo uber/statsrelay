@@ -1,10 +1,10 @@
-#include "validate.h"
-
-#include "log.h"
-
+#include <pcre.h>
 #include <string.h>
 
-static char *valid_stat_types[6] = {
+#include "log.h"
+#include "validate.h"
+
+static const char *valid_stat_types[6] = {
     "c",
     "ms",
     "kv",
@@ -12,13 +12,29 @@ static char *valid_stat_types[6] = {
     "h",
     "s"
 };
+
+static const char *reserved_tag_names[10] = {
+        "asg",
+        "az",
+        "backend",
+        "canary",
+        "host",
+        "period",
+        "region",
+        "shard",
+        "source",
+        "window"
+};
 static size_t valid_stat_types_len = 6;
+static size_t reserved_tag_names_len = 10;
 
 
-int validate_statsd(const char *line, size_t len, validate_parsed_result_t* result) {
+int validate_statsd(const char* line, size_t len, validate_parsed_result_t* result, filter_t* point_tag_validator,
+                    bool validate_point_tags) {
     size_t plen;
     char c;
-    int i, valid;
+    int* ovector, i, valid, offset, rc;
+    bool reserved_tagname = false;
 
     // FIXME: this is dumb, don't do a memory copy
     char *line_copy = strndup(line, len);
@@ -109,6 +125,26 @@ int validate_statsd(const char *line, size_t len, validate_parsed_result_t* resu
             stats_log("validate: Invalid line \"%.*s\" no @ sample rate specifier", len, line);
             goto statsd_err;
         }
+    }
+
+    offset = 0;
+    ovector = (int *)malloc(sizeof(int) * OVECCOUNT);
+    while (offset < len && (rc = filter_exec(point_tag_validator, line, len, &ovector, &offset)) >= 0) {
+        if (rc > 0) {
+            for (int i = 0; i < reserved_tag_names_len; i++) {
+                if (!strncasecmp(reserved_tag_names[i], line + ovector[2], ovector[3] - ovector[2])) {
+                    stats_log("validate: Invalid line \"%.*s\" usage of reserved tag %s", len, line,
+                              reserved_tag_names[i]);
+                    reserved_tagname = true;
+                }
+            }
+        }
+        offset = ovector[1];
+    }
+    free(ovector);
+
+    if (reserved_tagname && validate_point_tags) {
+        goto statsd_err;
     }
 
     free(line_copy);

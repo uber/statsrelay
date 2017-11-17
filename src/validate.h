@@ -2,7 +2,9 @@
 #define STATSRELAY_VALIDATE_H
 
 #include <stdlib.h>
+#include <stdbool.h>
 
+#include "./filter.h"
 
 /*
  * Define a set of valid statsd types, indexed to validate.c comparisons
@@ -21,10 +23,11 @@ typedef struct {
     double value;
     metric_type type;
     double presampling_value;
+
 } validate_parsed_result_t;
 
-typedef int (*validate_line_validator_t)(const char *, size_t, validate_parsed_result_t*);
+typedef int (*validate_line_validator_t)(const char*, size_t, validate_parsed_result_t*, filter_t*, bool);
 
-int validate_statsd(const char *, size_t, validate_parsed_result_t* result);
+int validate_statsd(const char*, size_t, validate_parsed_result_t*, filter_t*, bool);
 
 #endif  // STATSRELAY_VALIDATE_H

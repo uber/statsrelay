@@ -277,12 +277,12 @@ static void group_destroy(struct ev_loop *loop, stats_backend_group_t* group) {
 
 static int group_filter_create(char* input_filter, filter_t** group) {
     filter_t* filter;
-    int st = filter_re_create(&filter, input_filter, NULL);
+    int st = filter_re_create(&filter, input_filter);
     if (st != 0) {
-        stats_error_log("filter creation failed");
+        stats_error_log("filter creation failed for re: %s", input_filter);
         return st;
     }
-    stats_log("created ingress filter");
+    stats_log("created ingress filter for re: %s", input_filter);
     *group = filter;
     return 0;
 }
@@ -343,7 +343,7 @@ static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, 
 
     buffer_produced(response,
             snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-                "global.last_reload.timestamp:%" PRIu64 "|g\n",
+                "global.last_reload.timestamp:%ld|g\n",
                 server->last_reload));
 
     buffer_produced(response,
@@ -356,9 +356,16 @@ static void flush_cluster_stats(struct ev_loop *loop, struct ev_timer *watcher, 
                         snprintf((char *) buffer_tail(response), buffer_spacecount(response),
                                  "global.invalid_lines:%"
                                          PRIu64
-                                         "|g\n",
+                                         "|c\n",
                                  server->invalid_lines));
+        server->invalid_lines = 0;
     }
+    buffer_produced(response,
+            snprintf((char *) buffer_tail(response), buffer_spacecount(response),
+                     "global.invalid_lines_monotonic:%"
+                             PRIu64
+                             "|g\n",
+                     server->invalid_lines_monotonic));
 
     for (int i = 0; i < server->rings->size; i++) {
         stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
@@ -627,11 +634,22 @@ stats_server_t *stats_server_create(struct ev_loop *loop,
     server->bytes_recv_tcp = 0;
     server->malformed_lines = 0;
     server->invalid_lines = 0;
+    server->invalid_lines_monotonic = 0;
     server->total_connections = 0;
     server->last_reload = 0;
 
     server->parser = parser;
     server->validator = validator;
+    server->validate_point_tags = NULL;
+
+    /**
+     * if validation is enabled, we expect
+     * point tag regex expression be provided
+     */
+    if (server->config->enable_validation &&
+            group_filter_create(server->config->point_tag_regex, &server->validate_point_tags) != 0) {
+        goto server_create_err;
+    }
 
     for (int i = 0; i < server->rings->size; i++)
         stats_log("initialized server %d (%d total backends in system), hashring size = %d",
@@ -758,8 +776,10 @@ static void stats_write_to_backend(const char *line,
 static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bool send_to_monitor_cluster) {
     validate_parsed_result_t parsed_result;
     if (ss->config->enable_validation && ss->validator != NULL) {
-        if (ss->validator(line, len, &parsed_result) != 0) {
+        if (ss->validator(line, len, &parsed_result, ss->validate_point_tags, ss->config->validate_tags) != 0) {
             ss->invalid_lines++;
+            ss->invalid_lines_monotonic++;
+            stats_log("Bump up the count %ld", ss->invalid_lines_monotonic);
             return 1;
         }
     }
@@ -783,14 +803,18 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
         stats_debug_log("%s ring is empty", send_to_monitor_cluster ? "monitor": "generic");
     }
 
+    int *ovector, offset;
+
+    ovector = (int *)malloc(sizeof(int) * OVECCOUNT);
+    offset = 0;
     for (int group_num = 0; group_num < ring_size; group_num++) {
         stats_backend_group_t* group = (stats_backend_group_t*)ring_ptr->data[group_num];
         /* Check sampling result */
 
         if (group->ingress_blacklist) {
-            bool res = filter_exec(group->ingress_blacklist, key_buffer, key_len);
+            int rc = filter_exec(group->ingress_blacklist, key_buffer, key_len, &ovector, &offset);
 
-            if (res) { /* incoming line matches the blacklist filter, drop! */
+            if (rc > 0) { /* incoming line matches the blacklist filter, drop! */
                 stats_debug_log("rejecting incoming line %s", key_buffer);
                 group->rejected_lines++;
                 continue;
@@ -799,8 +823,8 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
 
         /* If we have a filter, lets run it */
         if (group->ingress_filter) {
-            bool res = filter_exec(group->ingress_filter, key_buffer, key_len);
-            if (!res) { /* Filter didn't match, don't process this backend */
+            int rc = filter_exec(group->ingress_filter, key_buffer, key_len, &ovector, &offset);
+            if (rc == 0) { /* Filter didn't match, don't process this backend */
                 group->filtered_lines++;
                 continue;
             }
@@ -830,6 +854,7 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
         }
         stats_write_to_backend(line, len, key_buffer, key_hash, key_len, group);
     }
+    free(ovector);
 
     return 0;
 }
@@ -863,7 +888,7 @@ void stats_send_statistics(stats_session_t *session) {
 
     buffer_produced(response,
             snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-                "global last_reload timestamp %" PRIu64 "\n",
+                "global last_reload timestamp %ld\n",
                 session->server->last_reload));
 
     buffer_produced(response,
@@ -873,8 +898,13 @@ void stats_send_statistics(stats_session_t *session) {
 
     buffer_produced(response,
             snprintf((char *)buffer_tail(response), buffer_spacecount(response),
-                "global invalid_lines gauge %" PRIu64 "\n",
+                "global invalid_lines counter %" PRIu64 "\n",
                 session->server->invalid_lines));
+
+    buffer_produced(response,
+            snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+                "global invalid_lines gauge %" PRIu64 "\n",
+                session->server->invalid_lines_monotonic));
 
     for (int i = 0; i < session->server->rings->size; i++) {
         stats_backend_group_t* group = (stats_backend_group_t*)session->server->rings->data[i];
@@ -1088,6 +1118,11 @@ udp_recv_err:
 
 
 void stats_server_destroy(stats_server_t *server) {
+    // free point tag validator filter
+    if (server->validate_point_tags != NULL) {
+        filter_free(server->validate_point_tags);
+    }
+
     for (int i = 0; i < server->rings->size; i++) {
         stats_backend_group_t* group = (stats_backend_group_t*)server->rings->data[i];
         group_destroy(server->loop, group);

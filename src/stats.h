@@ -57,19 +57,19 @@ typedef struct {
 
 	sampler_t* timer_sampler;
 
-	/** just to keep track of unique gauges, no actual sampling */
+	// just to keep track of unique gauges, no actual sampling
 	sampler_t* gauge_sampler;
 
-	/** dedicated event timer for timer sampling */
+	// dedicated event timer for timer sampling
 	ev_timer timer_sampling_watcher;
 
-	/** dedicated event timer for counter roll-ups */
+	// dedicated event timer for counter roll-ups
 	ev_timer counter_sampling_watcher;
 
-	/** dedicated event timer for counter roll-ups */
+	// dedicated event timer for counter roll-ups
 	ev_timer gauge_sampling_watcher;
 
-	/* Stats */
+	// Stats
 	uint64_t relayed_lines;
 	uint64_t filtered_lines;
 	uint64_t rejected_lines;
@@ -83,6 +83,9 @@ struct stats_server_t {
 	uint64_t bytes_recv_tcp;
 	uint64_t total_connections;
 	uint64_t malformed_lines;
+    // maintain a montonically increasing counter
+	uint64_t invalid_lines_monotonic;
+    // counter thats reset after flush
 	uint64_t invalid_lines;
 	time_t last_reload;
 
@@ -94,12 +97,15 @@ struct stats_server_t {
 	protocol_parser_t parser;
 	validate_line_validator_t validator;
 
-	/** Maintain unique ring for monitoring stats */
+    // validate point tag names
+	filter_t* validate_point_tags;
+
+	// Maintain unique ring for monitoring stats
 	list_t monitor_ring;
 	size_t num_monitor_backends;
 	stats_backend_t **backend_list_monitor;
 
-	/** timer to flush health stats to central cluster **/
+	// timer to flush health stats to central cluster
 	ev_timer stats_flusher;
 };
 
