@@ -779,7 +779,6 @@ static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bo
         if (ss->validator(line, len, &parsed_result, ss->validate_point_tags, ss->config->validate_tags) != 0) {
             ss->invalid_lines++;
             ss->invalid_lines_monotonic++;
-            stats_log("Bump up the count %ld", ss->invalid_lines_monotonic);
             return 1;
         }
     }
