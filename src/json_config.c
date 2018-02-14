@@ -14,7 +14,7 @@ static void init_proto_config(struct proto_config *protoc) {
     protoc->send_health_metrics = false;
     protoc->bind = NULL;
     protoc->enable_validation = true;
-    protoc->validate_tags = false;
+    protoc->validate_tags = true;
     protoc->enable_tcp_cork = true;
     protoc->max_send_queue = 134217728;
     protoc->auto_reconnect = false;
@@ -147,7 +147,7 @@ static int parse_additional_config(const json_t* additional_config, struct proto
 static int parse_proto(json_t* json, struct proto_config* config) {
     config->initialized = true;
     config->enable_validation = get_bool_orelse(json, "validate", true);
-    config->validate_tags = get_bool_orelse(json, "validate_tags", false);
+    config->validate_tags = get_bool_orelse(json, "validate_tags", true);
     config->enable_tcp_cork = get_bool_orelse(json, "tcp_cork", true);
     config->auto_reconnect = get_bool_orelse(json, "auto_reconnect", false);
 
@@ -159,6 +159,9 @@ static int parse_proto(json_t* json, struct proto_config* config) {
     }
 
     config->point_tag_regex = get_string(json, "point_tag_regex");
+    if (config->validate_tags && config->point_tag_regex == NULL) {
+        config->point_tag_regex = strdup("\\.__([a-zA-Z][a-zA-Z0-9_]+)=[^.]+");
+    }
     config->max_send_queue = get_int_orelse(json, "max_send_queue", 134217728);
     config->reconnect_threshold = get_real_orelse(json, "reconnect_threshold", 1.0);
 
