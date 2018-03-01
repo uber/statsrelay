@@ -1,6 +1,5 @@
 #include <pcre.h>
 #include <string.h>
-
 #include "log.h"
 #include "validate.h"
 
@@ -28,6 +27,8 @@ static const char *reserved_tag_names[10] = {
 static size_t valid_stat_types_len = 6;
 static size_t reserved_tag_names_len = 10;
 
+extern void *memrchr(const void*, int, size_t);
+
 
 int validate_statsd(const char* line, size_t len, validate_parsed_result_t* result, filter_t* point_tag_validator,
                     bool validate_point_tags) {
@@ -48,7 +49,9 @@ int validate_statsd(const char* line, size_t len, validate_parsed_result_t* resu
 
     start = line_copy;
     plen = len;
-    end = memchr(start, ':', plen);
+    // Example: keyname.__tagname=tag:value:42.0|ms
+    //                                      ^^^^--- actual value  
+    end = memrchr(start, ':', plen);
     if (end == NULL) {
         stats_log("validate: Invalid line \"%.*s\" missing ':'", len, line);
         goto statsd_err;

@@ -36,6 +36,7 @@ set(SOURCE_FILES
     src/list.h
     src/log.c
     src/log.h
+    src/memrchr.c
     src/pidfile.c
     src/pidfile.h
     src/protocol.c
