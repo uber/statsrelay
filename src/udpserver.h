@@ -14,6 +14,7 @@ udpserver_t *udpserver_create(struct ev_loop *loop, void *data);
 int udpserver_bind(udpserver_t *server,
         const char *address_and_port,
         bool rebind,
+        int recv_buffer_sz,
         int (*cb_recv)(int, void *));
 void udpserver_destroy(udpserver_t *server);
 

@@ -63,7 +63,8 @@ static void udplistener_recv_callback(struct ev_loop *loop, struct ev_io *watche
     }
 }
 
-static udplistener_t *udplistener_create(udpserver_t *server, struct addrinfo *addr, bool rebind, int (*cb_recv)(int, void *)) {
+static udplistener_t *udplistener_create(udpserver_t *server, struct addrinfo *addr, bool rebind, int recv_buffer_sz,
+                                         int (*cb_recv)(int, void *)) {
     udplistener_t *listener;
     char addr_string[INET6_ADDRSTRLEN];
     char sd_buffer[10];
@@ -124,6 +125,14 @@ static udplistener_t *udplistener_create(udpserver_t *server, struct addrinfo *a
         return NULL;
     }
 
+    err = setsockopt(listener->sd, SOL_SOCKET, SO_RCVBUF, &recv_buffer_sz, sizeof(recv_buffer_sz));
+    if (err != 0) {
+        stats_log("udplistener: Error setting SO_RCVBUF on %s[:%i] to %d: %s", addr_string, port, recv_buffer_sz,
+                  strerror(errno));
+        free(listener);
+        return NULL;
+    }
+
     err = fcntl(listener->sd, F_SETFL, (fcntl(listener->sd, F_GETFL) | O_NONBLOCK));
     if (err != 0) {
         stats_log("udplistener: Error setting socket to non-blocking for %s[:%i]: %s", addr_string, port, strerror(errno));
@@ -162,6 +171,7 @@ static void udplistener_destroy(udpserver_t *server, udplistener_t *listener) {
 int udpserver_bind(udpserver_t *server,
         const char *address_and_port,
         bool rebind,
+        int recv_buffer_sz,
         int (*cb_recv)(int, void *)) {
     udplistener_t *listener;
     struct addrinfo hints;
@@ -202,7 +212,7 @@ int udpserver_bind(udpserver_t *server,
             freeaddrinfo(addrs);
             return 1;
         }
-        listener = udplistener_create(server, p, rebind, cb_recv);
+        listener = udplistener_create(server, p, rebind, recv_buffer_sz, cb_recv);
         if (listener == NULL) {
             continue;
         }

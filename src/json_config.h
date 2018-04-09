@@ -113,6 +113,7 @@ struct proto_config {
     bool send_health_metrics;
     char *bind;
     bool enable_validation;
+    int  receive_buffer_size; /* UDP receive buffer size (in bytes) */
     bool validate_tags; /* validate tags encoded in the statsd metric, contingent on "enabled_validation" */
     bool enable_tcp_cork;
     bool auto_reconnect; /* drop connections to backend and reconnect on full buffer */

@@ -150,6 +150,7 @@ static int parse_proto(json_t* json, struct proto_config* config) {
     config->validate_tags = get_bool_orelse(json, "validate_tags", true);
     config->enable_tcp_cork = get_bool_orelse(json, "tcp_cork", true);
     config->auto_reconnect = get_bool_orelse(json, "auto_reconnect", false);
+    config->receive_buffer_size = get_int_orelse(json, "udp_receive_buffer_size", 2097152); // default 2 MB
 
     char* jbind = get_string(json, "bind");
     if (jbind != NULL) {

@@ -71,7 +71,6 @@ typedef struct tcpclient_t {
     buffer_t send_queue;
     enum tcpclient_state state;
     time_t last_error;
-    int retry_count;
     int failing;
     int sd;
     int socktype;
