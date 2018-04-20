@@ -1,6 +1,7 @@
 #undef NDEBUG
 
 #include <assert.h>
+#include <math.h>
 #include <string.h>
 
 #include "../log.h"
@@ -60,6 +61,10 @@ int main(int argc, char **argv) {
     assert(0 == validate_statsd(good1, strlen(good1), &result, filter, true));
     assert(42.0 == result.value);
     assert(METRIC_TIMER == result.type);
+
+    // metric with valid tags and filter enabled
+    static const char *bad5 = "a.b.c.__tag1=v1.__tag2=v2:v2:NAN|ms";
+    assert(1 == validate_statsd(bad5, strlen(bad5), &result, filter, true));
 
     // free the filter
     // to only log warning and not reject the line

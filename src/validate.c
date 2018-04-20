@@ -1,3 +1,4 @@
+#include <math.h>
 #include <pcre.h>
 #include <string.h>
 #include "log.h"
@@ -71,6 +72,10 @@ int validate_statsd(const char* line, size_t len, validate_parsed_result_t* resu
     result->value = strtod(start, &err);
     if ((result->value == 0.0) && (err == start)) {
         stats_log("validate: Invalid line \"%.*s\" unable to parse value as double", len, line);
+        goto statsd_err;
+    }
+    if (isnan(result->value) || isinf(result->value)) {
+        stats_log("validate: Invalid value \"%.*s\" supplied (NaN or INF)", len, line);
         goto statsd_err;
     }
     end[0] = c;
