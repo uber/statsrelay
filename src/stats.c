@@ -974,6 +974,50 @@ void stats_send_statistics(stats_session_t *session) {
     delete_buffer(response);
 }
 
+void stats_send_shardmap(stats_session_t *session) {
+    ssize_t bytes_sent;
+    stats_server_t *server = session->server;
+
+    // TODO: this only needs to be allocated once, not every time we send
+    // statistics
+    buffer_t *response = create_buffer(MAX_UDP_LENGTH);
+    if (response == NULL) {
+        stats_log("failed to allocate send_statistics buffer");
+        return;
+    }
+
+    for (int i = 0; i < server->rings->size; i++) {
+        if (i > 0)
+            buffer_produced(response,
+                    snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+                        "\n"));
+        stats_backend_group_t *group = (stats_backend_group_t *)server->rings->data[i];
+
+        for (size_t j = 0; j < group->ring->backends->size; j++) {
+            stats_backend_t *backend = (stats_backend_t *)group->ring->backends->data[j];
+            buffer_produced(response,
+                    snprintf((char *)buffer_tail(response), buffer_spacecount(response),
+                        "%s\n",backend->key));
+        }
+    }
+
+    while (buffer_datacount(response) > 0) {
+        bytes_sent = send(session->sd, buffer_head(response), buffer_datacount(response), 0);
+        if (bytes_sent < 0) {
+            stats_log("stats: Error sending status response: %s", strerror(errno));
+            break;
+        }
+
+        if (bytes_sent == 0) {
+            stats_log("stats: Error sending status response: Client closed connection");
+            break;
+        }
+
+        buffer_consume(response, bytes_sent);
+    }
+    delete_buffer(response);
+}
+
 static int stats_process_lines(stats_session_t *session) {
     char *head, *tail;
     size_t len;
@@ -996,6 +1040,8 @@ static int stats_process_lines(stats_session_t *session) {
 
         if (len == 6 && strcmp(line_buffer, "status\n") == 0) {
             stats_send_statistics(session);
+        } else if (len == 6 && strcmp(line_buffer, "shards\n") == 0) {
+            stats_send_shardmap(session);
         } else if (stats_relay_line(line_buffer, len, session->server, false) != 0) {
             return 1;
         }
