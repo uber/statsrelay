@@ -97,11 +97,13 @@ int buffer_consume(buffer_t *b, size_t amt)
 
 int buffer_consume_until(buffer_t *b, char token)
 {
-    for (;;) {
-        char* at_head = buffer_head(b);
-        int c = buffer_consume(b, 1);
-        if (at_head[0] == token || c == -1)
-            break;
+    char *head = buffer_head(b);
+    const size_t len = buffer_datacount(b);
+    char *p = memchr(head, token, len);
+    if (p != NULL) {
+        buffer_consume(b, p - head + 1);
+    } else {
+        buffer_consume(b, len);
     }
     return 0;
 }
