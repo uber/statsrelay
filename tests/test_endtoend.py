@@ -453,6 +453,51 @@ class StatsdTestCase(TestCase):
             self.assertEqual(groups['rejected_lines']['1'], 3)
 
 
+    def test_tcp_with_ingress_blacklist_extra(self):
+        with self.generate_config('tcp', filename="statsrelay-blacklist-extra") as config_path:
+            self.launch_process(config_path)
+            fd, addr = self.statsd_listener.accept()
+            sender = self.connect('tcp', self.bind_statsd_port)
+            for i in range(0, 6):
+                if i % 2 == 0:
+                    sender.sendall('redis.test.pipeline.execute_command.zrangebyscore:1|c\n')
+                    sender.sendall('test.blacklistme.996a38e0-67c6-11ea-abc8-acde48001122:1|c\n')
+                else:
+                    sender.sendall('redis.test.pipeline.nonblacklisted.metric:1|c\n')
+                    sender.sendall('test.git-server-6b22d668-67c6-11ea-abc8-acde48001122:1|c\n')
+                    expected = (
+                        'test-production-iad.redis.test.pipeline.nonblacklisted.metric.instance.test-production-iad-canary:1|c\n'
+                        'test-production-iad.test.git-server-6b22d668-67c6-11ea-abc8-acde48001122.instance.test-production-iad-canary:1|c\n'
+                    )
+                    self.check_recv(fd, expected, len(expected))
+
+            sender.sendall('status\n')
+            status = sender.recv(65536)
+            sender.close()
+
+            backends = defaultdict(dict)
+            groups = defaultdict(dict)
+            for line in status.split('\n'):
+                if not line:
+                    break
+                if line.startswith('backend:'):
+                    backend, key, valuetype, value = line.split(' ', 3)
+                    backend = backend.split(':', 1)[1]
+                    backends[backend][key] = int(value)
+                elif line.startswith('group:'):
+                    group, key, _, value = line.split(' ', 3)
+                    group_idx = group.split(':', 1)[1]
+                    groups[key][group_idx] = int(value)
+
+            key = '127.0.0.1:%d:tcp' % (self.statsd_listener.getsockname()[1],)
+            self.assertEqual(backends[key]['relayed_lines'], 6)
+            self.assertEqual(backends[key]['dropped_lines'], 0)
+            self.assertEqual(backends[key]['bytes_sent'], 645)
+            self.assertEqual(backends[key]['bytes_queued'], 309)
+            self.assertEqual(groups['rejected_lines']['0'], 0)
+            self.assertEqual(groups['rejected_lines']['1'], 6)
+
+
     def test_tcp_listener(self):
         with self.generate_config('tcp', filename='statsrelay') as config_path:
             self.launch_process(config_path)
