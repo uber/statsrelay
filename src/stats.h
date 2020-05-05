@@ -122,7 +122,6 @@ stats_server_t *stats_server_create(
 		struct proto_config *config,
 		protocol_parser_t parser,
 		validate_line_validator_t validator);
-stats_server_t *server;
 
 static int stats_relay_line(const char *line, size_t len, stats_server_t *ss, bool is_monitor_ring);
 

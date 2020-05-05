@@ -4,11 +4,12 @@
 #include "log.h"
 #include "validate.h"
 
-static const char * const valid_stat_types[6] = {
+static const char * const valid_stat_types[7] = {
     "c",
     "ms",
-    "kv",
+    "k",
     "g",
+    "G",
     "h",
     "s"
 };

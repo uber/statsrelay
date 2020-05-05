@@ -15,8 +15,9 @@ typedef enum {
     METRIC_TIMER = 1,
     METRIC_KV = 2,
     METRIC_GAUGE = 3,
-    METRIC_HIST = 4,
-    METRIC_S = 5
+    METRIC_GAUGEDIRECT = 4,
+    METRIC_HIST = 5,
+    METRIC_S = 6
 } metric_type;
 
 typedef struct {
