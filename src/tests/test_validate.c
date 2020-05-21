@@ -139,6 +139,16 @@ int main(int argc, char **argv) {
     static const char *bad5 = "a.b.c.__tag1=v1.__tag2=v2:v2:NAN|ms";
     assert(1 == validate_statsd(bad5, strlen(bad5), &result, filter, true));
 
+    // metric set type
+    static const char *setType = "a.b.c:12|s";
+    assert(0 == validate_statsd(setType, strlen(setType), &result, filter, true));
+    assert(METRIC_S == result.type);
+
+    // metric direct gauge type
+    static const char *dgType = "a.b.c:13|G";
+    assert(0 == validate_statsd(dgType, strlen(dgType), &result, filter, true));
+    assert(METRIC_GAUGEDIRECT == result.type);
+
     // additional tests
     test_line_not_modified(filter);
     test_parse_presampling_value(filter);

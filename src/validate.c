@@ -13,7 +13,7 @@ static const char * const valid_stat_types[7] = {
     "h",
     "s"
 };
-static const int valid_stat_types_len = 6;
+static const int valid_stat_types_len = 7;
 
 static const char * const reserved_tag_names[10] = {
         "asg",
