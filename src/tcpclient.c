@@ -371,9 +371,13 @@ void tcpclient_disconnect(tcpclient_t *client) {
             client->config->max_send_queue);
 
     client->failing = 1;
-    ev_io_stop(client->loop, &client->read_watcher.watcher);
-    ev_io_stop(client->loop, &client->write_watcher.watcher);
-    close(client->sd);
+    if (client->state == STATE_CONNECTED) {
+        ev_io_stop(client->loop, &client->read_watcher.watcher);
+        ev_io_stop(client->loop, &client->write_watcher.watcher);
+        close(client->sd);
+    } else if (client->state == STATE_CONNECTING) {
+        ev_io_stop(client->loop, &client->connect_watcher.watcher);
+    }
     tcpclient_set_state(client, STATE_INIT);
     client->last_error = time(NULL);
     client->callback_error(client, EVENT_ERROR, client->callback_context, NULL, 0);
