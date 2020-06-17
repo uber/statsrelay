@@ -220,7 +220,7 @@ static void print_help(const char *argv0) {
 int main(int argc, char **argv, char **envp) {
     ev_signal sigint_watcher, sigterm_watcher, sigusr1_watcher, sigusr2_watcher;
     char *lower;
-    char c = 0;
+    int c = 0;
     bool just_check_config = false;
     struct config *cfg = NULL;
     servers.initialized = false;
