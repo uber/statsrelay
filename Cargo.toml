@@ -1,0 +1,51 @@
+[package]
+name = "tugboat"
+version = "3.0.0"
+authors = ["Yann Ramin <github@theatr.us>"]
+edition = "2018"
+
+[[bin]]
+name = "tugboat"
+path = "src/cmd/tugboat.rs"
+
+[[bin]]
+name = "sr-loadgen"
+path = "src/cmd/loadgen.rs"
+
+[[bench]]
+name = "statsd_benchmark"
+harness = false
+
+
+[dependencies]
+fasthash = "0.4"
+tokio = { version = "0.2", features = ["full", "parking_lot"] }
+futures = "0.3"
+hyper = "0.13"
+structopt = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+qp-trie = "0.7"
+anyhow = "1.0"
+thiserror = "1.0"
+memchr = "2"
+stream-cancel = "0.6"
+crossbeam = "0.7"
+crossbeam-utils = "0.7"
+bytes = "0.5"
+parking_lot = "0.11"
+regex = "1"
+chrono = "0.4"
+
+log = "0.4"
+env_logger = "0.7"
+metrics = "0.12"
+metrics-runtime = "0.13"
+
+
+[dev-dependencies]
+tempfile = "3.1"
+criterion = "0.3"
+
+[build-dependencies]
+built = { version = "0.4", features = ["git2"] }

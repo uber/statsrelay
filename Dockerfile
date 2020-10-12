@@ -1,10 +1,11 @@
-FROM ubuntu:trusty
-RUN mkdir /code
-COPY ci/llvm.sh /code
-RUN apt-get -y update && apt-get install -y wget cmake gcc g++ libev-dev libjansson-dev libpcre3-dev && bash /code/llvm.sh && rm -rf /var/lib/apt/lists/*
-RUN apt-get install --reinstall wamerican
+FROM fedora:32
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+ENV PATH="$PATH:$HOME/.cargo/bin"
+RUN dnf install -y gcc make g++
+
 COPY . /code
 WORKDIR /code
-RUN mkdir build && cd build && cmake .. && make -j 4
-RUN mkdir build-asan && cd build-asan && CC=clang-4.0 CFLAGS=-fsanitize=address LDFLAGS=-fsanitize=address  LD=clang-4.0 cmake .. && make VERBOSE=1 -j 20
 
+RUN $HOME/.cargo/bin/cargo test --release && \
+    $HOME/.cargo/bin/cargo build --release

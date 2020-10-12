@@ -1,9 +1,8 @@
-language: c
-compiler: gcc
-dist: trusty
+language: rust
+dist: bionic
+services:
+  - docker
 before_install:
-  - sudo apt-get update -qq
-  - sudo apt-get install -qq cmake automake libev-dev pkg-config cppcheck libjansson-dev libpcre3-dev
-script: "cmake . && make && make check && make integ && cppcheck --enable=all --verbose --suppress=variableScope src/"
+  - docker build .
 
 

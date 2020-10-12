@@ -1,6 +1,0 @@
-#ifndef _CONFIG_H_
-#define _CONFIG_H_
-
-#define PACKAGE_STRING "${PACKAGE_STRING}"
-
-#endif
