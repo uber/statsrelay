@@ -9,26 +9,26 @@ use env_logger::Env;
 use log::{debug, info};
 use metrics_runtime::Receiver;
 
-use tugboat::backends;
-use tugboat::statsd_server;
+use statsrelay::backends;
+use statsrelay::statsd_server;
 
 #[derive(StructOpt, Debug)]
 struct Options {
-    #[structopt(short = "c", long = "--config", default_value = "/etc/tugboat.json")]
+    #[structopt(short = "c", long = "--config", default_value = "/etc/statsrelay.json")]
     pub config: String,
 }
 
 fn main() -> anyhow::Result<()> {
-    env_logger::from_env(Env::default().default_filter_or("info")).init();
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
     let opts = Options::from_args();
 
     info!(
-        "tugboat loading - {} - {}",
-        tugboat::built_info::PKG_VERSION,
-        tugboat::built_info::GIT_COMMIT_HASH.unwrap_or("unknown")
+        "statsrelay loading - {} - {}",
+        statsrelay::built_info::PKG_VERSION,
+        statsrelay::built_info::GIT_COMMIT_HASH.unwrap_or("unknown")
     );
 
-    let config = tugboat::config::load_legacy_config(opts.config.as_ref())
+    let config = statsrelay::config::load_legacy_config(opts.config.as_ref())
         .with_context(|| format!("can't load config file from {}", opts.config))?;
     info!("loaded config file {}", opts.config);
     debug!("bind address: {}", config.statsd.bind);
@@ -49,7 +49,7 @@ fn main() -> anyhow::Result<()> {
     threaded_rt.block_on(async move {
         let backends = backends::Backends::new();
         if config.statsd.shard_map.len() > 0 {
-            backends.add_statsd_backend(&tugboat::config::StatsdDuplicateTo::from_shards(
+            backends.add_statsd_backend(&statsrelay::config::StatsdDuplicateTo::from_shards(
                 config.statsd.shard_map.clone(),
             ));
         }

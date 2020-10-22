@@ -5,7 +5,7 @@ use parking_lot::RwLock;
 use regex::bytes::RegexSet;
 
 use crate::config::StatsdDuplicateTo;
-use crate::shard::{tugboat_compat_hash, Ring};
+use crate::shard::{statsrelay_compat_hash, Ring};
 use crate::statsd::StatsdPDU;
 use crate::statsd_client::StatsdClient;
 
@@ -63,7 +63,7 @@ impl StatsdBackend {
 
         let code = match self.ring.len() {
             1 => 1 as u32,
-            _ => tugboat_compat_hash(pdu),
+            _ => statsrelay_compat_hash(pdu),
         };
         let client = self.ring.pick_from(code);
         let mut sender = client.sender();

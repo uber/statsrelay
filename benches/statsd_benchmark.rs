@@ -1,8 +1,8 @@
 use bytes::Bytes;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-fn parse(line: &Bytes) -> Option<tugboat::statsd::StatsdPDU> {
-    tugboat::statsd::StatsdPDU::new(line.clone())
+fn parse(line: &Bytes) -> Option<statsrelay::statsd::StatsdPDU> {
+    statsrelay::statsd::StatsdPDU::new(line.clone())
 }
 
 fn criterion_benchmark(c: &mut Criterion) {

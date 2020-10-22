@@ -2,10 +2,10 @@ use fasthash::murmur3;
 
 use crate::statsd::StatsdPDU;
 
-// HASHLIB_SEED same as the legacy tugboat code base
+// HASHLIB_SEED same as the legacy statsrelay code base
 const HASHLIB_SEED: u32 = 0xaccd3d34;
 
-pub fn tugboat_compat_hash(pdu: &StatsdPDU) -> u32 {
+pub fn statsrelay_compat_hash(pdu: &StatsdPDU) -> u32 {
     murmur3::hash32_with_seed(pdu.name(), HASHLIB_SEED)
 }
 
@@ -57,25 +57,25 @@ pub mod test {
         ring.push(3);
 
         assert_eq!(
-            *ring.pick_from(tugboat_compat_hash(
+            *ring.pick_from(statsrelay_compat_hash(
                 &StatsdPDU::new(Bytes::copy_from_slice(b"apple:1|c")).unwrap()
             )),
             2
         );
         assert_eq!(
-            *ring.pick_from(tugboat_compat_hash(
+            *ring.pick_from(statsrelay_compat_hash(
                 &StatsdPDU::new(Bytes::copy_from_slice(b"banana:1|c")).unwrap()
             )),
             3
         );
         assert_eq!(
-            *ring.pick_from(tugboat_compat_hash(
+            *ring.pick_from(statsrelay_compat_hash(
                 &StatsdPDU::new(Bytes::copy_from_slice(b"orange:1|c")).unwrap()
             )),
             0
         );
         assert_eq!(
-            *ring.pick_from(tugboat_compat_hash(
+            *ring.pick_from(statsrelay_compat_hash(
                 &StatsdPDU::new(Bytes::copy_from_slice(b"lemon:1|c")).unwrap()
             )),
             1

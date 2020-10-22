@@ -1,12 +1,12 @@
 [package]
-name = "tugboat"
+name = "statsrelay"
 version = "3.0.0"
 authors = ["Yann Ramin <github@theatr.us>"]
 edition = "2018"
 
 [[bin]]
-name = "tugboat"
-path = "src/cmd/tugboat.rs"
+name = "statsrelay"
+path = "src/cmd/statsrelay.rs"
 
 [[bin]]
 name = "sr-loadgen"
@@ -30,15 +30,15 @@ anyhow = "1.0"
 thiserror = "1.0"
 memchr = "2"
 stream-cancel = "0.6"
-crossbeam = "0.7"
-crossbeam-utils = "0.7"
+crossbeam = "0.8"
+crossbeam-utils = "0.8"
 bytes = "0.5"
 parking_lot = "0.11"
 regex = "1"
 chrono = "0.4"
 
 log = "0.4"
-env_logger = "0.7"
+env_logger = "0.8"
 metrics = "0.12"
 metrics-runtime = "0.13"
 
