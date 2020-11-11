@@ -1,4 +1,5 @@
-use fasthash::murmur3;
+use murmur3;
+use std::io::Cursor;
 
 use crate::statsd::StatsdPDU;
 
@@ -6,7 +7,7 @@ use crate::statsd::StatsdPDU;
 const HASHLIB_SEED: u32 = 0xaccd3d34;
 
 pub fn statsrelay_compat_hash(pdu: &StatsdPDU) -> u32 {
-    murmur3::hash32_with_seed(pdu.name(), HASHLIB_SEED)
+    murmur3::murmur3_32(&mut Cursor::new(pdu.name()), HASHLIB_SEED).unwrap_or(0)
 }
 
 pub struct Ring<C: Send + Sync + 'static> {

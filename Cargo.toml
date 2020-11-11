@@ -18,7 +18,7 @@ harness = false
 
 
 [dependencies]
-fasthash = "0.4"
+murmur3 = "0.5"
 tokio = { version = "0.2", features = ["full", "parking_lot"] }
 futures = "0.3"
 hyper = "0.13"
