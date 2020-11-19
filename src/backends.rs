@@ -1,8 +1,10 @@
+use std::collections::HashMap;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 use parking_lot::RwLock;
 use regex::bytes::RegexSet;
+use thiserror::Error;
 
 use crate::config::StatsdDuplicateTo;
 use crate::shard::{statsrelay_compat_hash, Ring};
@@ -19,7 +21,7 @@ struct StatsdBackend {
 }
 
 impl StatsdBackend {
-    fn new(conf: &StatsdDuplicateTo) -> anyhow::Result<Self> {
+    fn new(conf: &StatsdDuplicateTo, client_ref: Option<&StatsdBackend>) -> anyhow::Result<Self> {
         let mut filters: Vec<String> = Vec::new();
 
         // This is ugly, sorry
@@ -35,20 +37,42 @@ impl StatsdBackend {
             None
         };
 
-        let mut backend = StatsdBackend {
+        let mut ring: Ring<StatsdClient> = Ring::new();
+
+        // Use the same backend for the same endpoint address, caching the lookup locally
+        let mut memoize: HashMap<String, StatsdClient> =
+            client_ref.map_or_else(|| HashMap::new(), |b| b.clients());
+        for endpoint in &conf.shard_map {
+            if let Some(client) = memoize.get(endpoint) {
+                ring.push(client.clone())
+            } else {
+                let client = StatsdClient::new(endpoint.as_str(), 100000);
+                memoize.insert(endpoint.clone(), client.clone());
+                ring.push(client);
+            }
+        }
+
+        let backend = StatsdBackend {
             conf: conf.clone(),
-            ring: Ring::new(),
+            ring: ring,
             input_filter: input_filter,
             warning_log: AtomicU64::new(0),
         };
 
-        for endpoint in &conf.shard_map {
-            backend
-                .ring
-                .push(StatsdClient::new(endpoint.as_str(), 100000));
-        }
-
         Ok(backend)
+    }
+
+    // Capture the old ring contents into a memoization map by endpoint,
+    // letting us re-use any old client connections and buffers. Note we
+    // won't start tearing down connections until the memoization buffer and
+    // old ring are both dropped.
+    fn clients(&self) -> HashMap<String, StatsdClient> {
+        let mut memoize: HashMap<String, StatsdClient> = HashMap::new();
+        for i in 0..self.ring.len() {
+            let client = self.ring.pick_from(i as u32);
+            memoize.insert(String::from(client.endpoint()), client.clone());
+        }
+        memoize
     }
 
     fn provide_statsd_pdu(&self, pdu: &StatsdPDU) {
@@ -59,13 +83,14 @@ impl StatsdBackend {
         {
             return;
         }
-        // All the other logic
 
-        let code = match self.ring.len() {
+        let ring_read = &self.ring;
+        let code = match ring_read.len() {
+            0 => return, // In case of nothing to send, do nothing
             1 => 1 as u32,
             _ => statsrelay_compat_hash(pdu),
         };
-        let client = self.ring.pick_from(code);
+        let client = ring_read.pick_from(code);
         let mut sender = client.sender();
 
         // Assign prefix and/or suffix
@@ -104,6 +129,12 @@ impl StatsdBackend {
     }
 }
 
+#[derive(Error, Debug)]
+pub enum BackendError {
+    #[error("Index not valid for backend {0}")]
+    InvalidIndex(usize),
+}
+
 struct BackendsInner {
     statsd: Vec<StatsdBackend>,
 }
@@ -113,8 +144,30 @@ impl BackendsInner {
         BackendsInner { statsd: vec![] }
     }
 
-    fn add_statsd_backend(&mut self, c: &StatsdDuplicateTo) {
-        self.statsd.push(StatsdBackend::new(c).unwrap());
+    fn add_statsd_backend(&mut self, c: &StatsdDuplicateTo) -> anyhow::Result<()> {
+        self.statsd.push(StatsdBackend::new(c, None)?);
+        Ok(())
+    }
+
+    fn replace_statsd_backend(&mut self, idx: usize, c: &StatsdDuplicateTo) -> anyhow::Result<()> {
+        let backend = match self.statsd.get(idx) {
+            None => return self.add_statsd_backend(c),
+            Some(backend) => backend,
+        };
+        self.statsd[idx] = StatsdBackend::new(c, Some(backend))?;
+        Ok(())
+    }
+
+    fn len(&self) -> usize {
+        self.statsd.len()
+    }
+
+    fn remove_statsd_backend(&mut self, idx: usize) -> anyhow::Result<()> {
+        if self.statsd.len() >= idx {
+            return Err(anyhow::Error::new(BackendError::InvalidIndex(idx)));
+        }
+        self.statsd.remove(idx);
+        Ok(())
     }
 
     fn provide_statsd_pdu(&self, pdu: StatsdPDU) {
@@ -142,8 +195,20 @@ impl Backends {
         }
     }
 
-    pub fn add_statsd_backend(&self, c: &StatsdDuplicateTo) {
-        self.inner.write().add_statsd_backend(c);
+    pub fn add_statsd_backend(&self, c: &StatsdDuplicateTo) -> anyhow::Result<()> {
+        self.inner.write().add_statsd_backend(c)
+    }
+
+    pub fn replace_statsd_backend(&self, idx: usize, c: &StatsdDuplicateTo) -> anyhow::Result<()> {
+        self.inner.write().replace_statsd_backend(idx, c)
+    }
+
+    pub fn remove_statsd_backend(&self, idx: usize) -> anyhow::Result<()> {
+        self.inner.write().remove_statsd_backend(idx)
+    }
+
+    pub fn len(&self) -> usize {
+        self.inner.read().len()
     }
 
     pub fn provide_statsd_pdu(&self, pdu: StatsdPDU) {
