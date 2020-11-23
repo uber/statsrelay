@@ -3,6 +3,11 @@ name = "statsrelay"
 version = "3.0.1"
 authors = ["Yann Ramin <github@theatr.us>"]
 edition = "2018"
+description = "Swiss army knife for aggregation, filtering, relaying, sharding of statsd, prometheus, and other metrics systems"
+license = "MIT"
+keywords = ["statsd", "metrics", "aggregation"]
+categories = ["development-tools"]
+repository = "https://github.com/lyft/statsrelay"
 
 [[bin]]
 name = "statsrelay"
