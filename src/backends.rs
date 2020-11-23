@@ -91,7 +91,7 @@ impl StatsdBackend {
             _ => statsrelay_compat_hash(pdu),
         };
         let client = ring_read.pick_from(code);
-        let mut sender = client.sender();
+        let sender = client.sender();
 
         // Assign prefix and/or suffix
         let pdu_clone: StatsdPDU;

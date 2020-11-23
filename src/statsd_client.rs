@@ -5,7 +5,7 @@ use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::select;
 use tokio::sync::mpsc;
-use tokio::time::{delay_for, timeout};
+use tokio::time::{sleep, timeout};
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -82,12 +82,12 @@ async fn form_connection(endpoint: &str, mut connect_tripwire: Tripwire) -> Opti
         ) {
             Err(_e) => {
                 warn!("connect timeout to {:?}", endpoint);
-                tokio::time::delay_for(RECONNECT_DELAY).await;
+                tokio::time::sleep(RECONNECT_DELAY).await;
                 continue;
             }
             Ok(Err(e)) => {
                 warn!("connect error to {:?} error {:?}", endpoint, e);
-                tokio::time::delay_for(RECONNECT_DELAY).await;
+                tokio::time::sleep(RECONNECT_DELAY).await;
                 continue;
             }
             Ok(Ok(s)) => {
@@ -117,8 +117,9 @@ async fn client_sender(
     connect_tripwire: Tripwire,
     mut recv: mpsc::Receiver<bytes::BytesMut>,
 ) {
+    let first_connect_tripwire = connect_tripwire.clone();
     let mut lazy_connect: Option<TcpStream> =
-        form_connection(endpoint.as_str(), connect_tripwire.clone()).await;
+        form_connection(endpoint.as_str(), first_connect_tripwire).await;
 
     loop {
         let mut buf = match recv.recv().await {
@@ -133,8 +134,9 @@ async fn client_sender(
             }
             let connect = match lazy_connect.as_mut() {
                 None => {
+                    let reconnect_tripwire = connect_tripwire.clone();
                     lazy_connect =
-                        form_connection(endpoint.as_str(), connect_tripwire.clone()).await;
+                        form_connection(endpoint.as_str(), reconnect_tripwire).await;
                     if lazy_connect.is_none() {
                         // Early check to see if the tripwire is set and bail
                         return;
@@ -182,9 +184,9 @@ async fn client_sender(
 /// ticker is needed as opposed to a timeout() wrapper over a queue.recv, which
 /// does not reliably get woken by try_send. The upside of this we also form one
 /// less short lived timer, not that its really a major advtange.
-async fn ticker(mut sender: mpsc::Sender<bool>) {
+async fn ticker(sender: mpsc::Sender<bool>) {
     loop {
-        delay_for(SEND_DELAY).await;
+        sleep(SEND_DELAY).await;
         match sender.send(true).await {
             Err(_) => return,
             Ok(_) => (),
@@ -199,7 +201,7 @@ async fn client_task(
     mut ticker_recv: mpsc::Receiver<bool>,
 ) {
     let mut buf = BytesMut::with_capacity(2 * 1024 * 1024);
-    let (mut buf_sender, buf_recv) = mpsc::channel(100);
+    let (buf_sender, buf_recv) = mpsc::channel(100);
     tokio::spawn(client_sender(endpoint.clone(), connect_tripwire, buf_recv));
 
     loop {

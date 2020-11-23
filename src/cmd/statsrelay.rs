@@ -7,7 +7,6 @@ use tokio::signal::unix::{signal, SignalKind};
 
 use env_logger::Env;
 use log::{debug, error, info};
-use metrics_runtime::Receiver;
 
 use statsrelay::backends;
 use statsrelay::statsd_server;
@@ -36,18 +35,14 @@ fn main() -> anyhow::Result<()> {
     info!("loaded config file {}", opts.config);
     debug!("bind address: {}", config.statsd.bind);
 
-    let receiver = Receiver::builder().build()?;
-    receiver.install();
-
     debug!("installed metrics receiver");
 
-    let mut builder = &mut runtime::Builder::new();
-    builder = match opts.threaded {
-        true => builder.threaded_scheduler(),
-        false => builder.basic_scheduler(),
+    let mut builder = match opts.threaded {
+        true => runtime::Builder::new_multi_thread(),
+        false => runtime::Builder::new_current_thread(),
     };
 
-    let mut runtime = builder.enable_all().build().unwrap();
+    let runtime = builder.enable_all().build().unwrap();
     info!("tokio runtime built, threaded: {}", opts.threaded);
 
     runtime.block_on(async move {

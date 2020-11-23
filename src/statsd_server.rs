@@ -166,13 +166,13 @@ async fn client_handler(mut tripwire: Tripwire, mut socket: TcpStream, backends:
 
 pub async fn run(tripwire: Tripwire, bind: String, backends: Backends) {
     //self.shutdown_trigger = Some(trigger);
-    let mut listener = TcpListener::bind(bind.as_str()).await.unwrap();
+    let listener = TcpListener::bind(bind.as_str()).await.unwrap();
     let mut udp = UdpServer::new();
     let bind_clone = bind.clone();
     let udp_join = udp.udp_worker(bind_clone, backends.clone());
     info!("statsd tcp server running on {}", bind);
 
-    let mut incoming = listener.incoming().take_until_if(tripwire.clone());
+    let mut incoming = listener.take_until_if(tripwire.clone());
     async move {
         while let Some(socket_res) = incoming.next().await {
             match socket_res {

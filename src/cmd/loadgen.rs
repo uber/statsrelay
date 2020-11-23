@@ -44,7 +44,7 @@ async fn main() {
                 diff.num_milliseconds(),
                 PRINT_INTERVAL as f64 / (diff.num_milliseconds() as f64 / 1000.0)
             );
-            //tokio::time::delay_for(Duration::from_millis(40)).await;
+            //tokio::time::sleep(Duration::from_millis(40)).await;
         };
     }
 }
