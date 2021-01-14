@@ -118,7 +118,7 @@ async fn reload_config_from_file(backends: &backends::Backends, path: &str) {
             }
         }
         if backends.len() > duplicate.len() {
-            for idx in duplicate.len()+1..backends.len() {
+            for idx in duplicate.len() + 1..backends.len() {
                 if let Err(e) = backends.remove_statsd_backend(idx) {
                     error!("failed to remove backend block {} with error {}", idx, e);
                 }

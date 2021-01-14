@@ -1,7 +1,6 @@
 use bytes::{BufMut, BytesMut};
-use futures::stream::StreamExt;
 use memchr::memchr;
-use stream_cancel::StreamExt as Cancel;
+use statsdproto::statsd::StatsdPDU;
 use stream_cancel::Tripwire;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -18,7 +17,6 @@ use std::time::Duration;
 use log::{info, warn};
 
 use crate::backends::Backends;
-use crate::statsd::StatsdPDU;
 
 const TCP_READ_TIMEOUT: Duration = Duration::from_secs(62);
 
@@ -172,21 +170,27 @@ pub async fn run(tripwire: Tripwire, bind: String, backends: Backends) {
     let udp_join = udp.udp_worker(bind_clone, backends.clone());
     info!("statsd tcp server running on {}", bind);
 
-    let mut incoming = listener.take_until_if(tripwire.clone());
     async move {
-        while let Some(socket_res) = incoming.next().await {
-            match socket_res {
-                Ok(socket) => {
-                    info!("accepted connection from {:?}", socket.peer_addr());
-                    tokio::spawn(client_handler(tripwire.clone(), socket, backends.clone()));
-                }
-                Err(err) => {
-                    info!("accept error = {:?}", err);
+        loop {
+            select! {
+                    _ = tripwire.clone() => {
+                        info!("stopped tcp listener loop");
+                        return
+                    }
+                    socket_res = listener.accept() => {
+
+                match socket_res {
+                    Ok((socket, _)) => {
+                        info!("accepted connection from {:?}", socket.peer_addr());
+                        tokio::spawn(client_handler(tripwire.clone(), socket, backends.clone()));
+                    }
+                    Err(err) => {
+                        info!("accept error = {:?}", err);
+                    }
                 }
             }
+            }
         }
-
-        info!("stopped tcp listener loop");
     }
     .await;
     drop(udp);

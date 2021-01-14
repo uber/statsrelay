@@ -1,7 +1,7 @@
 use murmur3;
 use std::io::Cursor;
 
-use crate::statsd::StatsdPDU;
+use statsdproto::statsd::StatsdPDU;
 
 // HASHLIB_SEED same as the legacy statsrelay code base
 const HASHLIB_SEED: u32 = 0xaccd3d34;
@@ -66,7 +66,6 @@ pub mod test {
         assert_eq!(ring2.len(), 3);
         ring.swap(ring2);
         assert_eq!(ring.len(), 3);
-
     }
     #[test]
     fn test_hash() {

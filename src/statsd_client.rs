@@ -1,5 +1,6 @@
 use bytes::{BufMut, BytesMut};
 use memchr::memchr;
+use statsdproto::statsd::StatsdPDU;
 use stream_cancel::{Trigger, Tripwire};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
@@ -11,8 +12,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use log::{info, warn};
-
-use crate::statsd::StatsdPDU;
 
 pub struct StatsdClient {
     sender: mpsc::Sender<StatsdPDU>,
@@ -135,8 +134,7 @@ async fn client_sender(
             let connect = match lazy_connect.as_mut() {
                 None => {
                     let reconnect_tripwire = connect_tripwire.clone();
-                    lazy_connect =
-                        form_connection(endpoint.as_str(), reconnect_tripwire).await;
+                    lazy_connect = form_connection(endpoint.as_str(), reconnect_tripwire).await;
                     if lazy_connect.is_none() {
                         // Early check to see if the tripwire is set and bail
                         return;

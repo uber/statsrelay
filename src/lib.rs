@@ -2,7 +2,6 @@ pub mod backends;
 pub mod config;
 pub mod sampler;
 pub mod shard;
-pub mod statsd;
 pub mod statsd_client;
 pub mod statsd_server;
 pub mod built_info {
