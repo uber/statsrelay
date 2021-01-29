@@ -25,8 +25,8 @@ impl StatsdBackend {
         let mut filters: Vec<String> = Vec::new();
 
         // This is ugly, sorry
-        if conf.input_blacklist.is_some() {
-            filters.push(conf.input_blacklist.as_ref().unwrap().clone());
+        if conf.input_blocklist.is_some() {
+            filters.push(conf.input_blocklist.as_ref().unwrap().clone());
         }
         if conf.input_filter.is_some() {
             filters.push(conf.input_filter.as_ref().unwrap().clone());

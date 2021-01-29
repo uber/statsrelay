@@ -1,6 +1,6 @@
 [package]
 name = "statsrelay"
-version = "3.0.2"
+version = "3.1.0"
 authors = ["Yann Ramin <github@theatr.us>"]
 edition = "2018"
 description = "Swiss army knife for aggregation, filtering, relaying, sharding of statsd, prometheus, and other metrics systems"
@@ -19,7 +19,7 @@ path = "src/cmd/loadgen.rs"
 
 [dependencies]
 murmur3 = "0.5"
-tokio = { version = "1.0", features = ["full", "parking_lot"] }
+tokio = { version = "1", features = ["full", "parking_lot"] }
 futures = "0.3"
 hyper = "0.14"
 structopt = "0.3"

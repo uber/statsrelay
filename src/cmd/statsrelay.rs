@@ -30,7 +30,7 @@ fn main() -> anyhow::Result<()> {
         statsrelay::built_info::GIT_COMMIT_HASH.unwrap_or("unknown")
     );
 
-    let config = statsrelay::config::load_legacy_config(opts.config.as_ref())
+    let config = statsrelay::config::load(opts.config.as_ref())
         .with_context(|| format!("can't load config file from {}", opts.config))?;
     info!("loaded config file {}", opts.config);
     debug!("bind address: {}", config.statsd.bind);
@@ -47,20 +47,9 @@ fn main() -> anyhow::Result<()> {
 
     runtime.block_on(async move {
         let backends = backends::Backends::new();
-        // Load the default backend set, even if its zero sized, to avoid index
-        // errors later
-        if let Err(e) = backends.add_statsd_backend(
-            &statsrelay::config::StatsdDuplicateTo::from_shards(config.statsd.shard_map.clone()),
-        ) {
-            error!("invalid backend created {}", e);
-            return;
-        }
-        for duplicate_to_block in config.statsd.duplicate_to.map_or(vec![], |f| f) {
-            if let Err(e) = backends.add_statsd_backend(&duplicate_to_block) {
-                error!("invalid backend created {}", e);
-                return;
-            }
-        }
+        load_config(Some(&config), &backends, opts.config.as_ref())
+            .await
+            .unwrap();
         let (sender, tripwire) = Tripwire::new();
         let run = statsd_server::run(tripwire, config.statsd.bind.clone(), backends.clone());
 
@@ -81,7 +70,7 @@ fn main() -> anyhow::Result<()> {
             loop {
                 sighup.recv().await;
                 info!("reloading configuration and replacing backends");
-                reload_config_from_file(&backends, opts.config.as_ref()).await;
+                let _ = load_config(None, &backends, opts.config.as_ref()).await;
             }
         });
 
@@ -93,37 +82,42 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn reload_config_from_file(backends: &backends::Backends, path: &str) {
-    let config = match statsrelay::config::load_legacy_config(path)
-        .with_context(|| format!("can't load config file from {}", path))
-    {
-        Err(e) => {
-            error!("failed to reload configuration: {}", e);
-            return;
+async fn load_config(
+    from_config: Option<&statsrelay::config::Config>,
+    backends: &backends::Backends,
+    path: &str,
+) -> anyhow::Result<()> {
+    // Check if we have to load the configuration file
+    let config = match from_config {
+        Some(from_config) => from_config.clone(),
+        None => {
+            match statsrelay::config::load(path)
+                .with_context(|| format!("can't load config file from {}", path))
+            {
+                Err(e) => {
+                    error!("failed to reload configuration: {}", e);
+                    return Err(e).context("failed to reload configuration file");
+                }
+                Ok(ok) => ok,
+            }
         }
-        Ok(ok) => ok,
     };
 
-    if let Err(e) = backends.replace_statsd_backend(
-        0,
-        &statsrelay::config::StatsdDuplicateTo::from_shards(config.statsd.shard_map.clone()),
-    ) {
-        error!("invalid backend created {}", e);
-    }
-    if let Some(duplicate) = config.statsd.duplicate_to {
-        for (idx, dp) in duplicate.iter().enumerate() {
-            if let Err(e) = backends.replace_statsd_backend(idx, dp) {
-                error!("failed to replace backend index {} error {}", idx, e);
-                continue;
-            }
+    let duplicate = config.statsd.duplicate_to;
+    for (idx, dp) in duplicate.iter().enumerate() {
+        if let Err(e) = backends.replace_statsd_backend(idx, dp) {
+            error!("failed to replace backend index {} error {}", idx, e);
+            continue;
         }
-        if backends.len() > duplicate.len() {
-            for idx in duplicate.len() + 1..backends.len() {
-                if let Err(e) = backends.remove_statsd_backend(idx) {
-                    error!("failed to remove backend block {} with error {}", idx, e);
-                }
+    }
+    if backends.len() > duplicate.len() {
+        for idx in duplicate.len() + 0..backends.len() {
+            if let Err(e) = backends.remove_statsd_backend(idx) {
+                error!("failed to remove backend block {} with error {}", idx, e);
             }
         }
     }
+
     info!("backends reloaded");
+    Ok(())
 }
