@@ -1,6 +1,9 @@
 use anyhow::Context;
+use futures::StreamExt;
+use serde::__private::size_hint::cautious;
 use stream_cancel::Tripwire;
 use structopt::StructOpt;
+
 use tokio::runtime;
 use tokio::select;
 use tokio::signal::unix::{signal, SignalKind};
@@ -9,6 +12,7 @@ use env_logger::Env;
 use log::{debug, error, info};
 
 use statsrelay::backends;
+use statsrelay::discovery;
 use statsrelay::statsd_server;
 
 #[derive(StructOpt, Debug)]
@@ -47,9 +51,7 @@ fn main() -> anyhow::Result<()> {
 
     runtime.block_on(async move {
         let backends = backends::Backends::new();
-        load_config(Some(&config), &backends, opts.config.as_ref())
-            .await
-            .unwrap();
+
         let (sender, tripwire) = Tripwire::new();
         let run = statsd_server::run(tripwire, config.statsd.bind.clone(), backends.clone());
 
@@ -67,10 +69,21 @@ fn main() -> anyhow::Result<()> {
         // Trap sighup to support manual file reloading
         let mut sighup = signal(SignalKind::hangup()).unwrap();
         tokio::spawn(async move {
+            let dconfig = config.discovery.unwrap_or_default();
+            let discovery_cache = discovery::Cache::new();
+            let mut discovery_stream =
+                discovery::reflector(discovery_cache.clone(), discovery::as_stream(&dconfig));
             loop {
-                sighup.recv().await;
-                info!("reloading configuration and replacing backends");
-                let _ = load_config(None, &backends, opts.config.as_ref()).await;
+                info!("loading configuration and updating backends");
+                let _ = load_config(&discovery_cache, &backends, opts.config.as_ref()).await;
+                tokio::select! {
+                    _ = sighup.recv() => {
+                        info!("received sighup");
+                    }
+                    Some(event) = discovery_stream.next() => {
+                        info!("updating discovery for map {}", event.0);
+                    }
+                };
             }
         });
 
@@ -83,24 +96,19 @@ fn main() -> anyhow::Result<()> {
 }
 
 async fn load_config(
-    from_config: Option<&statsrelay::config::Config>,
+    discovery_cache: &discovery::Cache,
     backends: &backends::Backends,
     path: &str,
 ) -> anyhow::Result<()> {
     // Check if we have to load the configuration file
-    let config = match from_config {
-        Some(from_config) => from_config.clone(),
-        None => {
-            match statsrelay::config::load(path)
-                .with_context(|| format!("can't load config file from {}", path))
-            {
-                Err(e) => {
-                    error!("failed to reload configuration: {}", e);
-                    return Err(e).context("failed to reload configuration file");
-                }
-                Ok(ok) => ok,
-            }
+    let config = match statsrelay::config::load(path)
+        .with_context(|| format!("can't load config file from {}", path))
+    {
+        Err(e) => {
+            error!("failed to reload configuration: {}", e);
+            return Err(e).context("failed to reload configuration file");
         }
+        Ok(ok) => ok,
     };
 
     let duplicate = config.statsd.duplicate_to;

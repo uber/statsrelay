@@ -1,16 +1,17 @@
-use crate::config::S3DiscoverySource;
+use crate::config::{Discovery, DiscoverySource, S3DiscoverySource};
 
+use std::pin::Pin;
+use std::sync::Arc;
 use std::time::Duration;
 
 use async_stream::stream;
 use dashmap::DashMap;
-use futures::pin_mut;
-use futures::stream::Stream;
-use futures::stream::StreamExt;
+use futures::{stream::Stream, StreamExt};
 use log::warn;
 use rusoto_s3::S3;
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
+use tokio_stream::StreamMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Update {
@@ -70,10 +71,49 @@ fn s3_stream(config: S3DiscoverySource) -> impl Stream<Item = Update> {
                 Ok(update) => update,
             };
             if new_update != last_update {
-            yield new_update.clone();
+                yield new_update.clone();
             }
             last_update = new_update;
             tokio::time::sleep(Duration::from_secs(config.interval as u64)).await;
         }
     }
+}
+
+pub fn as_stream(config: &Discovery) -> impl Stream<Item = (String, Update)> {
+    let mut streams: StreamMap<String, Pin<Box<dyn Stream<Item = Update> + Send>>> = StreamMap::new();
+
+    for (name, source) in config.sources.iter() {
+        match source {
+            DiscoverySource::S3(source) => {
+                let ns = Box::pin(s3_stream(source.clone()));
+                streams.insert(name.clone(), ns);
+            }
+            _ => (),
+        }
+    }
+    streams
+}
+
+#[derive(Clone)]
+pub struct Cache {
+    cache: Arc<DashMap<String, Update>>,
+}
+
+impl Cache {
+    pub fn new() -> Self {
+        Cache {
+            cache: Arc::new(DashMap::new()),
+        }
+    }
+
+    pub fn store(&self, event: &(String, Update)) {
+        self.cache.insert(event.0.clone(), event.1.clone());
+    }
+}
+
+pub fn reflector<S>(cache: Cache, stream: S) -> impl Stream<Item = (String, Update)>
+where
+    S: Stream<Item = (String, Update)>,
+{
+    stream.inspect(move |event| cache.store(event))
 }
