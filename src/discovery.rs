@@ -80,7 +80,8 @@ fn s3_stream(config: S3DiscoverySource) -> impl Stream<Item = Update> {
 }
 
 pub fn as_stream(config: &Discovery) -> impl Stream<Item = (String, Update)> {
-    let mut streams: StreamMap<String, Pin<Box<dyn Stream<Item = Update> + Send>>> = StreamMap::new();
+    let mut streams: StreamMap<String, Pin<Box<dyn Stream<Item = Update> + Send>>> =
+        StreamMap::new();
 
     for (name, source) in config.sources.iter() {
         match source {
