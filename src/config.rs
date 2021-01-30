@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -61,17 +61,23 @@ pub struct StatsdConfig {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct S3DiscoverySource {
+    pub bucket: String,
+    pub key: String,
+    pub interval: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PathDiscoverySource {
+    pub path: String,
+    pub interval: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum DiscoverySource {
-    StaticFile {
-        path: String,
-        interval: u32,
-    },
-    S3 {
-        bucket: String,
-        key: String,
-        interval: u32,
-    },
+    StaticFile(PathDiscoverySource),
+    S3(S3DiscoverySource),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -103,6 +109,7 @@ pub enum Error {
 pub fn check_config(config: &Config) -> anyhow::Result<()> {
     let default = Discovery::default();
     let discovery = &config.discovery.as_ref().unwrap_or(&default);
+    // Every reference to a shard_map needs a reference to a valid discovery block
     for statsd_dupl in config.statsd.duplicate_to.iter() {
         if let Some(source) = &statsd_dupl.shard_map_source {
             if let None = discovery.sources.get(source) {
@@ -172,5 +179,16 @@ pub mod test {
         tf.write_all(config.as_bytes()).unwrap();
         let config = load(tf.path().to_str().unwrap()).unwrap();
         assert_eq!(config.statsd.validate, Some(true));
+
+        // Check discovery
+        let discovery = config.discovery.unwrap();
+        assert_eq!(2, discovery.sources.len());
+        let s3_source = discovery.sources.get("my_s3").unwrap();
+        match s3_source {
+            DiscoverySource::S3(source) => {
+                assert!(source.bucket == "foo");
+            }
+            _ => panic!("not an s3 source"),
+        };
     }
 }

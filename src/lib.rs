@@ -1,5 +1,6 @@
 pub mod backends;
 pub mod config;
+pub mod discovery;
 pub mod sampler;
 pub mod shard;
 pub mod statsd_client;

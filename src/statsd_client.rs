@@ -181,7 +181,7 @@ async fn client_sender(
 /// non-async mpsc try_send being used to trigger the primary sender queue, the
 /// ticker is needed as opposed to a timeout() wrapper over a queue.recv, which
 /// does not reliably get woken by try_send. The upside of this we also form one
-/// less short lived timer, not that its really a major advtange.
+/// less short lived timer, not that its really a major advantage.
 async fn ticker(sender: mpsc::Sender<bool>) {
     loop {
         sleep(SEND_DELAY).await;

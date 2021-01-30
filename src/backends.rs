@@ -180,7 +180,7 @@ impl BackendsInner {
 }
 
 ///
-/// Backends provides a cloneable contaner for various protocol backends,
+/// Backends provides a cloneable container for various protocol backends,
 /// handling logic like sharding, sampling, and other detectors.
 ///
 #[derive(Clone)]

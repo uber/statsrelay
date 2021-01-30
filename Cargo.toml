@@ -37,6 +37,12 @@ parking_lot = "0.11"
 regex = "1"
 chrono = "0.4"
 statsdproto = "0.1"
+dashmap = "4"
+async-stream = "0.3"
+
+# For discovery
+rusoto_core = "0.46"
+rusoto_s3 = "0.46"
 
 log = "0.4"
 env_logger = "0.8"
