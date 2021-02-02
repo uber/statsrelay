@@ -1,8 +1,8 @@
 use crate::config::{Discovery, DiscoverySource, S3DiscoverySource};
 
-use std::fs::File;
+use std::{fs::File, ops::Add};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration};
 use std::{io::BufReader, pin::Pin};
 
 use async_stream::stream;
@@ -12,6 +12,7 @@ use log::warn;
 use rusoto_s3::S3;
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
+use tokio::time::Instant;
 use tokio_stream::StreamMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -73,19 +74,23 @@ async fn poll_file_source(path: String) -> anyhow::Result<Update> {
 
 /// A generic stream which takes a callable async function taking an
 /// update (or lack thereof), polling at the defined interval, emitting the
-/// output when changed as a stream
+/// output when changed as a stream.
 fn polled_stream<T, C>(config: T, interval: u64, callable: C) -> impl Stream<Item = Update>
 where
     T: Clone + Send + Sync,
     C: Fn(T) -> Pin<Box<dyn futures::Future<Output = anyhow::Result<Update>> + Send>>,
 {
+    let mut last_update = Update::default();
+    let duration = Duration::from_secs(interval as u64);
+    let start = Instant::now().add(duration);
     stream! {
-        let mut last_update = Update::default();
+
+        let mut ticker = tokio::time::interval_at(start, duration);
         loop {
             let new_update = match callable(config.clone()).await {
                 Err(e) => {
                     warn!("unable to fetch discovery source due to error {:?}", e);
-                    tokio::time::sleep(Duration::from_secs(interval as u64)).await;
+                    ticker.tick().await;
                     continue;
                 },
                 Ok(update) => update,
@@ -94,7 +99,7 @@ where
                 yield new_update.clone();
             }
             last_update = new_update;
-            tokio::time::sleep(Duration::from_secs(interval as u64)).await;
+            ticker.tick().await;
         }
     }
 }

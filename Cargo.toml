@@ -1,6 +1,6 @@
 [package]
 name = "statsrelay"
-version = "3.1.0"
+version = "3.1.0-dev"
 authors = ["Yann Ramin <github@theatr.us>"]
 edition = "2018"
 description = "Swiss army knife for aggregation, filtering, relaying, sharding of statsd, prometheus, and other metrics systems"

@@ -21,12 +21,12 @@ statsd.
 ## Build
 
 Dependencies:
-- Rust (stable, 1.44+)
+- Rust (stable, 1.46+)
 
 ## Use
 
 ```
-statsrelay 3.0.0
+statsrelay 3.1.0
 
 USAGE:
     statsrelay [OPTIONS]
@@ -57,8 +57,8 @@ Statsrelay understands:
 ### Configuration file
 
 The configuration file is a JSON file originating from the original statsrelay
-structure. Currently, any valid Lyft statsrelay configuration file is accepted
-as a statsrelay file.
+structure. The original statsrelay configuration contract has been broken as of
+version 3.1 in order to fix a number of features.
 
 #### Basic structure
 
@@ -74,6 +74,16 @@ as a statsrelay file.
             "suffix": ".suffix"
           }
         }
+    },
+    "discovery": {
+      "sources": {
+        "source1": {
+          "type": "s3",
+          "bucket": "my-bucket",
+          "key": "file.json",
+          "interval": 10
+        }
+      }
     }
 }
 ```
@@ -86,21 +96,67 @@ Statsd inputs and routing is defined in the outer `statsd` block.
   protocol messages, such as parsing of numerical fields, which may not be
   required for a pure relaying case.
 - `backends` forks the incoming statsd metrics down a number of parallel
-  processing pipelines.
+  processing pipelines. By default, all incoming protocol lines from the statsd
+  server are sent to all backends.
 
-#### `backends` options and sampling
+#### `backends` options
 
 Each backend is named and can accept a number of options and rewrite steps for
 sending and processing StatsD messages.
 
-- `shard_map`: defines where to send statsd output to, from a list of servers.
-  The same server can be specified more than once (allowing for virtual
-  sharding). Output statsd lines are consistently hashed, and sent to the
-  corresponding server based on a standard hash ring, in a compatible format to
-  the original statsrelay code (Murmur3 hash). This list can be empty to not
-  relay statsd messages.
+- `shard_map`: list of socket addresses that defines where to send statsd output
+  to, from a list of servers. The same server can be specified more than once
+  (allowing for virtual sharding). Output statsd lines are consistently hashed,
+  and sent to the corresponding server based on a standard hash ring, in a
+  compatible format to the original statsrelay code (Murmur3 hash). This list
+  can be empty to not relay statsd messages.
+- `shard_map_source`: string value which defines a discovery source to use
+  in-lieu of `shard_map`.
 - `prefix`: prepend this prefix string in front of every metric/statsd line before
   forwarding it to the `shard_map` servers. Useful for tagging metrics coming
   from a sidecar.
 - `suffix`: append a suffix. Works like prefix, just at the end.
 
+#### `discovery` options
+
+Each key in the discovery sources section defines a source which can be used by
+most backends to locate servers, sharding, or other network resources to
+communicate with. Each named discovery source is listed in the `sources` subkey:
+
+```json
+{
+  "sources": {
+    "source_name_1": {
+      "type": "static_file"
+    },
+    "source_name_2": {
+      "type": "s3"
+    }
+  }
+}
+```
+
+For sources supporting a file input (s3, static_file), the following schema is
+assumed:
+
+```json
+{
+  "hosts": ["host:port", "host:port"]
+}
+```
+
+Some sources may support rewriting to transform the input string into an output
+string (e.g., to add a port)
+
+##### s3 source
+
+An S3 source represents an AWS S3 compatible source. Statsrelay uses `rusoto_s3`
+to access S3 and supports the vast majority of metadata sources, configuration,
+and environment variables in order to locate credentials.
+
+The following keys are supported for the S3 source:
+
+- `bucket` - The S3 bucket where the file lives
+- `key` - The key/path instead the S3 bucket
+- `interval` - An integer number of seconds to wait before re-polling the
+  contents of the S3 key to detect changes.
