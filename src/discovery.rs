@@ -1,4 +1,4 @@
-use crate::config::{Discovery, DiscoverySource, PathDiscoverySource, S3DiscoverySource};
+use crate::config::{Discovery, DiscoverySource, S3DiscoverySource};
 
 use std::fs::File;
 use std::sync::Arc;
