@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path};
+use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -38,26 +38,13 @@ pub struct StatsdDuplicateTo {
     pub input_filter: Option<String>,
 }
 
-impl StatsdDuplicateTo {
-    pub fn from_shards(shards: Vec<String>) -> Self {
-        StatsdDuplicateTo {
-            shard_map: shards,
-            shard_map_source: None,
-            suffix: None,
-            prefix: None,
-            input_blocklist: None,
-            input_filter: None,
-        }
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StatsdConfig {
     pub bind: String,
     pub point_tag_regex: Option<String>,
     pub validate: Option<bool>,
     pub tcp_cork: Option<bool>,
-    pub duplicate_to: Vec<StatsdDuplicateTo>,
+    pub backends: HashMap<String, StatsdDuplicateTo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -110,7 +97,7 @@ pub fn check_config(config: &Config) -> anyhow::Result<()> {
     let default = Discovery::default();
     let discovery = &config.discovery.as_ref().unwrap_or(&default);
     // Every reference to a shard_map needs a reference to a valid discovery block
-    for statsd_dupl in config.statsd.duplicate_to.iter() {
+    for (_, statsd_dupl) in config.statsd.backends.iter() {
         if let Some(source) = &statsd_dupl.shard_map_source {
             if let None = discovery.sources.get(source) {
                 return Err(Error::UnknownDiscoverySource(source.clone()).into());
@@ -140,20 +127,22 @@ pub mod test {
         {
             "statsd": {
                 "bind": "127.0.0.1:BIND_STATSD_PORT",
-                "duplicate_to": [
-                    {
-                        "prefix": "test-1.",
-                        "shard_map": [
-                            "127.0.0.1:SEND_STATSD_PORT"
-                        ],
-                        "suffix": ".suffix"
-                    },
-                    {
-                        "input_filter": "^(?=dontmatchme)",
-                        "prefix": "test-2.",
-                        "shard_map_source": "my_s3"
-                    }
-                ],
+                "backends": {
+                    "test1":
+                       {
+                            "prefix": "test-1.",
+                            "shard_map": [
+                                "127.0.0.1:SEND_STATSD_PORT"
+                            ],
+                            "suffix": ".suffix"
+                        },
+                "mapsource":
+                        {
+                            "input_filter": "^(?=dontmatchme)",
+                            "prefix": "test-2.",
+                            "shard_map_source": "my_s3"
+                        }
+                },
                 "point_tag_regex": "\\.__([a-zA-Z][a-zA-Z0-9_]+)=[a-zA-Z0-9_/-]+",
                 "tcp_cork": true,
                 "validate": true

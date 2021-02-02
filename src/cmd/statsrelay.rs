@@ -3,6 +3,8 @@ use futures::StreamExt;
 use stream_cancel::Tripwire;
 use structopt::StructOpt;
 
+use std::collections::HashSet;
+
 use tokio::runtime;
 use tokio::select;
 use tokio::signal::unix::{signal, SignalKind};
@@ -124,18 +126,24 @@ async fn load_backend_configs(
         Ok(ok) => ok,
     };
 
-    let duplicate = &config.statsd.duplicate_to;
-    for (idx, dp) in duplicate.iter().enumerate() {
-        if let Err(e) = backends.replace_statsd_backend(idx, dp) {
-            error!("failed to replace backend index {} error {}", idx, e);
+    let duplicate = &config.statsd.backends;
+    for (name, dp) in duplicate.iter() {
+        let discovery_data = if let Some(discovery_name) = &dp.shard_map_source {
+            discovery_cache.get(discovery_name)
+        } else {
+            None
+        };
+        if let Err(e) = backends.replace_statsd_backend(name, dp, discovery_data.as_ref()) {
+            error!("failed to replace backend index {} error {}", name, e);
             continue;
         }
     }
-    if backends.len() > duplicate.len() {
-        for idx in duplicate.len() + 0..backends.len() {
-            if let Err(e) = backends.remove_statsd_backend(idx) {
-                error!("failed to remove backend block {} with error {}", idx, e);
-            }
+    let existing_backends = backends.backend_names();
+    let config_backends: HashSet<String> = duplicate.keys().map(|s| s.clone()).collect();
+    let difference = existing_backends.difference(&config_backends);
+    for remove in difference {
+        if let Err(e) = backends.remove_statsd_backend(remove) {
+            error!("failed to remove backend {} with error {:?}", remove, e);
         }
     }
 

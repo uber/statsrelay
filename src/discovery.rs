@@ -1,8 +1,9 @@
-use crate::config::{Discovery, DiscoverySource, S3DiscoverySource};
+use crate::config::{Discovery, DiscoverySource, PathDiscoverySource, S3DiscoverySource};
 
-use std::pin::Pin;
+use std::fs::File;
 use std::sync::Arc;
 use std::time::Duration;
+use std::{io::BufReader, pin::Pin};
 
 use async_stream::stream;
 use dashmap::DashMap;
@@ -15,18 +16,18 @@ use tokio_stream::StreamMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Update {
-    sources: Vec<String>,
+    hosts: Vec<String>,
 }
 
 impl Update {
     pub fn sources(&self) -> &Vec<String> {
-        &self.sources
+        &self.hosts
     }
 }
 
 impl Default for Update {
     fn default() -> Self {
-        Update { sources: vec![] }
+        Update { hosts: vec![] }
     }
 }
 
@@ -36,7 +37,7 @@ pub enum Error {
     EmptyObjectError,
 }
 
-async fn poll_s3_source(config: &S3DiscoverySource) -> anyhow::Result<Update> {
+async fn poll_s3_source(config: S3DiscoverySource) -> anyhow::Result<Update> {
     let region = rusoto_core::Region::default();
     let s3 = rusoto_s3::S3Client::new(region);
     let req = rusoto_s3::GetObjectRequest {
@@ -59,13 +60,32 @@ async fn poll_s3_source(config: &S3DiscoverySource) -> anyhow::Result<Update> {
     };
 }
 
-fn s3_stream(config: S3DiscoverySource) -> impl Stream<Item = Update> {
+async fn poll_file_source(path: String) -> anyhow::Result<Update> {
+    let result = tokio::task::spawn_blocking(move || {
+        let file = File::open(path)?;
+        let reader = BufReader::new(file);
+        let update: Update = serde_json::from_reader(reader)?;
+        Ok(update)
+    })
+    .await?;
+    result
+}
+
+/// A generic stream which takes a callable async function taking an
+/// update (or lack thereof), polling at the defined interval, emitting the
+/// output when changed as a stream
+fn polled_stream<T, C>(config: T, interval: u64, callable: C) -> impl Stream<Item = Update>
+where
+    T: Clone + Send + Sync,
+    C: Fn(T) -> Pin<Box<dyn futures::Future<Output = anyhow::Result<Update>> + Send>>,
+{
     stream! {
         let mut last_update = Update::default();
         loop {
-            let new_update = match poll_s3_source(&config).await {
+            let new_update = match callable(config.clone()).await {
                 Err(e) => {
                     warn!("unable to fetch discovery source due to error {:?}", e);
+                    tokio::time::sleep(Duration::from_secs(interval as u64)).await;
                     continue;
                 },
                 Ok(update) => update,
@@ -74,7 +94,7 @@ fn s3_stream(config: S3DiscoverySource) -> impl Stream<Item = Update> {
                 yield new_update.clone();
             }
             last_update = new_update;
-            tokio::time::sleep(Duration::from_secs(config.interval as u64)).await;
+            tokio::time::sleep(Duration::from_secs(interval as u64)).await;
         }
     }
 }
@@ -86,10 +106,23 @@ pub fn as_stream(config: &Discovery) -> impl Stream<Item = (String, Update)> {
     for (name, source) in config.sources.iter() {
         match source {
             DiscoverySource::S3(source) => {
-                let ns = Box::pin(s3_stream(source.clone()));
+                let ns = Box::pin(polled_stream(
+                    source.clone(),
+                    source.interval as u64,
+                    move |s| Box::pin(poll_s3_source(s)),
+                ));
+                //let ns = Box::pin(s3_stream(source.clone()));
                 streams.insert(name.clone(), ns);
             }
-            _ => (),
+            DiscoverySource::StaticFile(source) => {
+                let ns = Box::pin(polled_stream(
+                    source.path.clone(),
+                    source.interval as u64,
+                    move |s| Box::pin(poll_file_source(s)),
+                ));
+                //let ns = Box::pin(static_file_stream(source.clone()));
+                streams.insert(name.clone(), ns);
+            }
         }
     }
     streams
@@ -109,6 +142,10 @@ impl Cache {
 
     pub fn store(&self, event: &(String, Update)) {
         self.cache.insert(event.0.clone(), event.1.clone());
+    }
+
+    pub fn get(&self, key: &String) -> Option<Update> {
+        self.cache.get(key).map(|s| s.clone())
     }
 }
 

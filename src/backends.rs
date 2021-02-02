@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
@@ -8,6 +8,7 @@ use statsdproto::statsd::StatsdPDU;
 use thiserror::Error;
 
 use crate::config::StatsdDuplicateTo;
+use crate::discovery;
 use crate::shard::{statsrelay_compat_hash, Ring};
 use crate::statsd_client::StatsdClient;
 
@@ -21,7 +22,11 @@ struct StatsdBackend {
 }
 
 impl StatsdBackend {
-    fn new(conf: &StatsdDuplicateTo, client_ref: Option<&StatsdBackend>) -> anyhow::Result<Self> {
+    fn new(
+        conf: &StatsdDuplicateTo,
+        client_ref: Option<&StatsdBackend>,
+        discoery_update: Option<&discovery::Update>,
+    ) -> anyhow::Result<Self> {
         let mut filters: Vec<String> = Vec::new();
 
         // This is ugly, sorry
@@ -42,7 +47,11 @@ impl StatsdBackend {
         // Use the same backend for the same endpoint address, caching the lookup locally
         let mut memoize: HashMap<String, StatsdClient> =
             client_ref.map_or_else(|| HashMap::new(), |b| b.clients());
-        for endpoint in &conf.shard_map {
+
+        let use_endpoints = discoery_update
+            .map(|u| u.sources())
+            .unwrap_or(&conf.shard_map);
+        for endpoint in use_endpoints {
             if let Some(client) = memoize.get(endpoint) {
                 ring.push(client.clone())
             } else {
@@ -136,25 +145,25 @@ pub enum BackendError {
 }
 
 struct BackendsInner {
-    statsd: Vec<StatsdBackend>,
+    statsd: HashMap<String, StatsdBackend>,
 }
 
 impl BackendsInner {
     fn new() -> Self {
-        BackendsInner { statsd: vec![] }
+        BackendsInner {
+            statsd: HashMap::new(),
+        }
     }
 
-    fn add_statsd_backend(&mut self, c: &StatsdDuplicateTo) -> anyhow::Result<()> {
-        self.statsd.push(StatsdBackend::new(c, None)?);
-        Ok(())
-    }
-
-    fn replace_statsd_backend(&mut self, idx: usize, c: &StatsdDuplicateTo) -> anyhow::Result<()> {
-        let backend = match self.statsd.get(idx) {
-            None => return self.add_statsd_backend(c),
-            Some(backend) => backend,
-        };
-        self.statsd[idx] = StatsdBackend::new(c, Some(backend))?;
+    fn replace_statsd_backend(
+        &mut self,
+        name: &String,
+        c: &StatsdDuplicateTo,
+        discovery_update: Option<&discovery::Update>,
+    ) -> anyhow::Result<()> {
+        let previous = self.statsd.get(name);
+        let backend = StatsdBackend::new(c, previous, discovery_update)?;
+        self.statsd.insert(name.clone(), backend);
         Ok(())
     }
 
@@ -162,19 +171,20 @@ impl BackendsInner {
         self.statsd.len()
     }
 
-    fn remove_statsd_backend(&mut self, idx: usize) -> anyhow::Result<()> {
-        if self.statsd.len() >= idx {
-            return Err(anyhow::Error::new(BackendError::InvalidIndex(idx)));
-        }
-        self.statsd.remove(idx);
+    fn remove_statsd_backend(&mut self, name: &String) -> anyhow::Result<()> {
+        self.statsd.remove(name);
         Ok(())
+    }
+
+    fn backend_names(&self) -> HashSet<&String> {
+        self.statsd.keys().collect()
     }
 
     fn provide_statsd_pdu(&self, pdu: StatsdPDU) {
         let _result: Vec<_> = self
             .statsd
             .iter()
-            .map(|backend| backend.provide_statsd_pdu(&pdu))
+            .map(|(_, backend)| backend.provide_statsd_pdu(&pdu))
             .collect();
     }
 }
@@ -195,16 +205,28 @@ impl Backends {
         }
     }
 
-    pub fn add_statsd_backend(&self, c: &StatsdDuplicateTo) -> anyhow::Result<()> {
-        self.inner.write().add_statsd_backend(c)
+    pub fn replace_statsd_backend(
+        &self,
+        name: &String,
+        c: &StatsdDuplicateTo,
+        discovery_update: Option<&discovery::Update>,
+    ) -> anyhow::Result<()> {
+        self.inner
+            .write()
+            .replace_statsd_backend(name, c, discovery_update)
     }
 
-    pub fn replace_statsd_backend(&self, idx: usize, c: &StatsdDuplicateTo) -> anyhow::Result<()> {
-        self.inner.write().replace_statsd_backend(idx, c)
+    pub fn remove_statsd_backend(&self, name: &String) -> anyhow::Result<()> {
+        self.inner.write().remove_statsd_backend(name)
     }
 
-    pub fn remove_statsd_backend(&self, idx: usize) -> anyhow::Result<()> {
-        self.inner.write().remove_statsd_backend(idx)
+    pub fn backend_names(&self) -> HashSet<String> {
+        self.inner
+            .read()
+            .backend_names()
+            .iter()
+            .map(|s| (*s).clone())
+            .collect()
     }
 
     pub fn len(&self) -> usize {

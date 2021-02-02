@@ -4,12 +4,24 @@
         "point_tag_regex": "\\.__([a-zA-Z][a-zA-Z0-9_]+)=[a-zA-Z0-9_/-]+",
         "tcp_cork": true,
         "validate": true,
-        "duplicate_to": [
-            {
+        "backends": {
+            "simple": {
                 "shard_map": [
                     "127.0.0.1:8122"
                 ]
+            },
+            "path_discovery": {
+                "shard_map_source": "path_discovery"
             }
-        ]
+        }
+    },
+    "discovery": {
+        "sources": {
+            "path_discovery": {
+                "type": "static_file",
+                "path": "examples/source-example1.json",
+                "interval": 5
+            }
+        }
     }
 }

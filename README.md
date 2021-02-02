@@ -62,17 +62,18 @@ as a statsrelay file.
 
 #### Basic structure
 
-```
+```json
 {
     "statsd": {
         "bind": "127.0.0.1:8129",
-        "shard_map": [
-            "127.0.0.1:8122"
-        ],
         "validate": true,
-        "prefix": "myapp.",
-        "suffix": ".suffix",
-        duplicate_to: []
+        "backends": {
+          "b1": {
+            "shard_map": ["127.0.0.1:1234"],
+            "prefix": "myapp.",
+            "suffix": ".suffix"
+          }
+        }
     }
 }
 ```
@@ -81,23 +82,25 @@ Statsd inputs and routing is defined in the outer `statsd` block.
 
 - `bind`: sets the server bind address to accept statsd protocol messages.
   Statsrelay will bind on both UDP and TCP ports.
+- `validate`: turns on extended, more expensive validation of statsd line
+  protocol messages, such as parsing of numerical fields, which may not be
+  required for a pure relaying case.
+- `backends` forks the incoming statsd metrics down a number of parallel
+  processing pipelines.
+
+#### `backends` options and sampling
+
+Each backend is named and can accept a number of options and rewrite steps for
+sending and processing StatsD messages.
+
 - `shard_map`: defines where to send statsd output to, from a list of servers.
   The same server can be specified more than once (allowing for virtual
   sharding). Output statsd lines are consistently hashed, and sent to the
   corresponding server based on a standard hash ring, in a compatible format to
   the original statsrelay code (Murmur3 hash). This list can be empty to not
   relay statsd messages.
-- `validate`: turns on extended, more expensive validation of statsd line
-  protocol messages, such as parsing of numerical fields, which may not be
-  required for a pure relaying case.
 - `prefix`: prepend this prefix string in front of every metric/statsd line before
   forwarding it to the `shard_map` servers. Useful for tagging metrics coming
   from a sidecar.
 - `suffix`: append a suffix. Works like prefix, just at the end.
-- `duplicate_to` forks the incoming statsd metrics down a number of parallel
-  processing pipelines.
-
-#### `duplicate_to` options and sampling
-
-
 
