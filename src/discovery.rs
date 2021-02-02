@@ -1,8 +1,8 @@
 use crate::config::{Discovery, DiscoverySource, S3DiscoverySource};
 
-use std::{fs::File, ops::Add};
 use std::sync::Arc;
-use std::time::{Duration};
+use std::time::Duration;
+use std::{fs::File, ops::Add};
 use std::{io::BufReader, pin::Pin};
 
 use async_stream::stream;
@@ -18,6 +18,21 @@ use tokio_stream::StreamMap;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Update {
     hosts: Vec<String>,
+}
+
+impl Update {
+    pub fn format(&self, format: &str) -> Option<Self> {
+        if !format.contains("{}") {
+            return None;
+        }
+        Some(Update {
+            hosts: self
+                .hosts
+                .iter()
+                .map(|input| String::from(format).replace("{}", input))
+                .collect(),
+        })
+    }
 }
 
 impl Update {
@@ -48,17 +63,26 @@ async fn poll_s3_source(config: S3DiscoverySource) -> anyhow::Result<Update> {
     };
     let resp = s3.get_object(req).await?;
     let mut buffer = Vec::with_capacity(resp.content_length.unwrap_or(0 as i64) as usize);
-    match resp.body {
+    let update = match resp.body {
         Some(contents) => {
             contents.into_async_read().read_to_end(&mut buffer).await?;
             let update: Update = serde_json::from_slice(buffer.as_ref())?;
-            return Ok(update);
+            update
         }
         None => {
             warn!("no cluster state located at {:?}", config.key);
             return Err(Error::EmptyObjectError.into());
         }
     };
+    if let Some(format) = &config.format {
+        if let Some(update) = update.format(format.as_str()) {
+            Ok(update)
+        } else {
+            Ok(update)
+        }
+    } else {
+        Ok(update)
+    }
 }
 
 async fn poll_file_source(path: String) -> anyhow::Result<Update> {
@@ -159,4 +183,20 @@ where
     S: Stream<Item = (String, Update)>,
 {
     stream.inspect(move |event| cache.store(event))
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::Update;
+
+    #[test]
+    fn format() {
+        let o1 = Update {
+            hosts: vec!["a", "b"].iter().map(|s| (*s).into()).collect(),
+        };
+        let f = o1.format("{}hello").unwrap();
+        assert_eq!(f.hosts[0], "ahello");
+        assert_eq!(f.hosts[1], "bhello");
+        assert!(o1.format("foo").is_none());
+    }
 }

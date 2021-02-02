@@ -52,6 +52,7 @@ pub struct S3DiscoverySource {
     pub bucket: String,
     pub key: String,
     pub interval: u32,
+    pub format: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
