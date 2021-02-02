@@ -160,3 +160,6 @@ The following keys are supported for the S3 source:
 - `key` - The key/path instead the S3 bucket
 - `interval` - An integer number of seconds to wait before re-polling the
   contents of the S3 key to detect changes.
+- `format` - A simple text subsitution to run on the incoming text, where `{}` is
+  replaced by the value of each host entry. Valuable to append information, such
+  as a port number by specifying `"format": "{}:8125"`
