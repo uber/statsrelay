@@ -29,7 +29,7 @@ struct StatsdClientInner {
 const RECONNECT_DELAY: Duration = Duration::from_secs(5);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 const SEND_DELAY: Duration = Duration::from_millis(500);
-const SEND_THRESHOLD: usize = 1024 * 1024;
+const SEND_THRESHOLD: usize = 10 * 1024;
 
 impl StatsdClient {
     pub fn new(stats: stats::Scope, endpoint: &str, channel_buffer: usize) -> Self {
