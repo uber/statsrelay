@@ -36,6 +36,7 @@ pub struct StatsdDuplicateTo {
     pub prefix: Option<String>,
     pub input_blocklist: Option<String>,
     pub input_filter: Option<String>,
+    pub max_queue: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

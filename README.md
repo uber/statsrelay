@@ -116,6 +116,9 @@ sending and processing StatsD messages.
   forwarding it to the `shard_map` servers. Useful for tagging metrics coming
   from a sidecar.
 - `suffix`: append a suffix. Works like prefix, just at the end.
+- `max_queue`: Number of messages to support queued up before dropping. Allows
+  the sender to make overall progress in light of one backend being down.
+  Defaults to 10,000.
 
 #### `discovery` options
 

@@ -198,7 +198,7 @@ async fn client_task(
     mut recv: mpsc::Receiver<StatsdPDU>,
     mut ticker_recv: mpsc::Receiver<bool>,
 ) {
-    let mut buf = BytesMut::with_capacity(2 * 1024 * 1024);
+    let mut buf = BytesMut::with_capacity(65535);
     let (buf_sender, buf_recv) = mpsc::channel(100);
     tokio::spawn(client_sender(endpoint.clone(), connect_tripwire, buf_recv));
 

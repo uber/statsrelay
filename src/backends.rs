@@ -55,7 +55,8 @@ impl StatsdBackend {
             if let Some(client) = memoize.get(endpoint) {
                 ring.push(client.clone())
             } else {
-                let client = StatsdClient::new(endpoint.as_str(), 100000);
+                let client =
+                    StatsdClient::new(endpoint.as_str(), conf.max_queue.unwrap_or(100000) as usize);
                 memoize.insert(endpoint.clone(), client.clone());
                 ring.push(client);
             }
