@@ -12,9 +12,11 @@ use tokio::signal::unix::{signal, SignalKind};
 use env_logger::Env;
 use log::{debug, error, info};
 
+use statsrelay::admin;
 use statsrelay::backends;
 use statsrelay::config;
 use statsrelay::discovery;
+use statsrelay::stats;
 use statsrelay::statsd_server;
 
 #[derive(StructOpt, Debug)]
@@ -41,6 +43,12 @@ fn main() -> anyhow::Result<()> {
     info!("loaded config file {}", opts.config);
     debug!("bind address: {}", config.statsd.bind);
 
+    let collector = stats::Collector::default();
+
+    if let Some(admin) = &config.admin {
+        admin::spawn_admin_server(admin.port, collector.clone());
+        info!("spawned admin server on port {}", admin.port);
+    }
     debug!("installed metrics receiver");
 
     let mut builder = match opts.threaded {
@@ -51,11 +59,15 @@ fn main() -> anyhow::Result<()> {
     let runtime = builder.enable_all().build().unwrap();
     info!("tokio runtime built, threaded: {}", opts.threaded);
 
+    let scope = collector.scope("statsrelay");
+
     runtime.block_on(async move {
-        let backends = backends::Backends::new();
+        let backends = backends::Backends::new(scope.scope("backends"));
+
+        let backend_reloads = scope.counter("backend_reloads").unwrap();
 
         let (sender, tripwire) = Tripwire::new();
-        let run = statsd_server::run(tripwire, config.statsd.bind.clone(), backends.clone());
+        let run = statsd_server::run(scope.scope("statsd_server"), tripwire, config.statsd.bind.clone(), backends.clone());
 
         // Trap ctrl+c and sigterm messages and perform a clean shutdown
         let mut sigint = signal(SignalKind::interrupt()).unwrap();
@@ -86,6 +98,7 @@ fn main() -> anyhow::Result<()> {
                 discovery::reflector(discovery_cache.clone(), discovery::as_stream(&dconfig));
             loop {
                 info!("loading configuration and updating backends");
+                backend_reloads.inc();
                 let config = load_backend_configs(&discovery_cache, &backends, opts.config.as_ref()).await.unwrap();
                 let dconfig = config.discovery.unwrap_or_default();
 

@@ -17,6 +17,7 @@ use std::time::Duration;
 use log::{info, warn};
 
 use crate::backends::Backends;
+use crate::stats;
 
 const TCP_READ_TIMEOUT: Duration = Duration::from_secs(62);
 
@@ -37,8 +38,16 @@ impl UdpServer {
         }
     }
 
-    fn udp_worker(&mut self, bind: String, backends: Backends) -> std::thread::JoinHandle<()> {
+    fn udp_worker(
+        &mut self,
+        stats: stats::Scope,
+        bind: String,
+        backends: Backends,
+    ) -> std::thread::JoinHandle<()> {
         let socket = UdpSocket::bind(bind.as_str()).unwrap();
+
+        let processed_lines = stats.counter("processed_lines").unwrap();
+        let incoming_bytes = stats.counter("incoming_bytes").unwrap();
         // We set a small timeout to allow aborting the UDP server if there is no
         // incoming traffic.
         socket
@@ -54,8 +63,10 @@ impl UdpServer {
                 let mut buf = BytesMut::with_capacity(65535);
 
                 match socket.recv_from(&mut buf[..]) {
-                    Ok((_size, _remote)) => {
+                    Ok((size, _remote)) => {
+                        incoming_bytes.inc_by(size as f64);
                         let mut r = process_buffer_newlines(&mut buf);
+                        processed_lines.inc_by(r.len() as f64);
                         for p in r.drain(..) {
                             backends.provide_statsd_pdu(p);
                         }
@@ -93,8 +104,17 @@ fn process_buffer_newlines(buf: &mut BytesMut) -> Vec<StatsdPDU> {
     return ret;
 }
 
-async fn client_handler(mut tripwire: Tripwire, mut socket: TcpStream, backends: Backends) {
+async fn client_handler(
+    stats: stats::Scope,
+    mut tripwire: Tripwire,
+    mut socket: TcpStream,
+    backends: Backends,
+) {
     let mut buf = BytesMut::with_capacity(65535);
+    let incoming_bytes = stats.counter("incoming_bytes").unwrap();
+    let disconnects = stats.counter("disconnects").unwrap();
+    let processed_lines = stats.counter("lines").unwrap();
+
     loop {
         if buf.remaining_mut() < 65535 {
             buf.reserve(65535);
@@ -120,6 +140,8 @@ async fn client_handler(mut tripwire: Tripwire, mut socket: TcpStream, backends:
             }
             Ok(bytes) if bytes == 0 => {
                 let mut r = process_buffer_newlines(&mut buf);
+                processed_lines.inc_by(r.len() as f64);
+
                 for p in r.drain(..) {
                     backends.provide_statsd_pdu(p);
                 }
@@ -135,8 +157,11 @@ async fn client_handler(mut tripwire: Tripwire, mut socket: TcpStream, backends:
                 info!("closing reader {:?}", socket.peer_addr());
                 break;
             }
-            Ok(_bytes) => {
+            Ok(bytes) => {
+                incoming_bytes.inc_by(bytes as f64);
+
                 let mut r = process_buffer_newlines(&mut buf);
+                processed_lines.inc_by(r.len() as f64);
                 for p in r.drain(..) {
                     backends.provide_statsd_pdu(p);
                 }
@@ -160,31 +185,37 @@ async fn client_handler(mut tripwire: Tripwire, mut socket: TcpStream, backends:
             }
         }
     }
+    disconnects.inc();
 }
 
-pub async fn run(tripwire: Tripwire, bind: String, backends: Backends) {
+pub async fn run(stats: stats::Scope, tripwire: Tripwire, bind: String, backends: Backends) {
     //self.shutdown_trigger = Some(trigger);
     let listener = TcpListener::bind(bind.as_str()).await.unwrap();
     let mut udp = UdpServer::new();
     let bind_clone = bind.clone();
-    let udp_join = udp.udp_worker(bind_clone, backends.clone());
+    let udp_join = udp.udp_worker(stats.scope("udp"), bind_clone, backends.clone());
     info!("statsd tcp server running on {}", bind);
+
+    let accept_connections = stats.counter("accepts").unwrap();
+    let accept_failures = stats.counter("accept_failures").unwrap();
 
     async move {
         loop {
             select! {
-                    _ = tripwire.clone() => {
-                        info!("stopped tcp listener loop");
-                        return
-                    }
-                    socket_res = listener.accept() => {
+                _ = tripwire.clone() => {
+                    info!("stopped tcp listener loop");
+                    return
+                }
+                socket_res = listener.accept() => {
 
                 match socket_res {
                     Ok((socket, _)) => {
                         info!("accepted connection from {:?}", socket.peer_addr());
-                        tokio::spawn(client_handler(tripwire.clone(), socket, backends.clone()));
+                        accept_connections.inc();
+                        tokio::spawn(client_handler(stats.scope("connections"), tripwire.clone(), socket, backends.clone()));
                     }
                     Err(err) => {
+                        accept_failures.inc();
                         info!("accept error = {:?}", err);
                     }
                 }

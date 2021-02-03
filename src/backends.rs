@@ -10,6 +10,7 @@ use thiserror::Error;
 use crate::config::StatsdDuplicateTo;
 use crate::discovery;
 use crate::shard::{statsrelay_compat_hash, Ring};
+use crate::stats;
 use crate::statsd_client::StatsdClient;
 
 use log::warn;
@@ -19,13 +20,16 @@ struct StatsdBackend {
     ring: Ring<StatsdClient>,
     input_filter: Option<RegexSet>,
     warning_log: AtomicU64,
+    backend_sends: stats::Counter,
+    backend_fails: stats::Counter,
 }
 
 impl StatsdBackend {
     fn new(
+        stats: stats::Scope,
         conf: &StatsdDuplicateTo,
         client_ref: Option<&StatsdBackend>,
-        discoery_update: Option<&discovery::Update>,
+        discovery_update: Option<&discovery::Update>,
     ) -> anyhow::Result<Self> {
         let mut filters: Vec<String> = Vec::new();
 
@@ -48,15 +52,18 @@ impl StatsdBackend {
         let mut memoize: HashMap<String, StatsdClient> =
             client_ref.map_or_else(|| HashMap::new(), |b| b.clients());
 
-        let use_endpoints = discoery_update
+        let use_endpoints = discovery_update
             .map(|u| u.sources())
             .unwrap_or(&conf.shard_map);
         for endpoint in use_endpoints {
             if let Some(client) = memoize.get(endpoint) {
                 ring.push(client.clone())
             } else {
-                let client =
-                    StatsdClient::new(endpoint.as_str(), conf.max_queue.unwrap_or(100000) as usize);
+                let client = StatsdClient::new(
+                    stats.scope("statsd_client"),
+                    endpoint.as_str(),
+                    conf.max_queue.unwrap_or(100000) as usize,
+                );
                 memoize.insert(endpoint.clone(), client.clone());
                 ring.push(client);
             }
@@ -67,6 +74,8 @@ impl StatsdBackend {
             ring: ring,
             input_filter: input_filter,
             warning_log: AtomicU64::new(0),
+            backend_fails: stats.counter("backend_fails").unwrap(),
+            backend_sends: stats.counter("backend_sends").unwrap(),
         };
 
         Ok(backend)
@@ -123,6 +132,7 @@ impl StatsdBackend {
         }
         match sender.try_send(pdu_clone) {
             Err(_e) => {
+                self.backend_fails.inc();
                 let count = self
                     .warning_log
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -134,7 +144,9 @@ impl StatsdBackend {
                     );
                 }
             }
-            Ok(_) => (),
+            Ok(_) => {
+                self.backend_sends.inc();
+            }
         }
     }
 }
@@ -147,12 +159,14 @@ pub enum BackendError {
 
 struct BackendsInner {
     statsd: HashMap<String, StatsdBackend>,
+    stats: stats::Scope,
 }
 
 impl BackendsInner {
-    fn new() -> Self {
+    fn new(stats: stats::Scope) -> Self {
         BackendsInner {
             statsd: HashMap::new(),
+            stats: stats,
         }
     }
 
@@ -163,7 +177,12 @@ impl BackendsInner {
         discovery_update: Option<&discovery::Update>,
     ) -> anyhow::Result<()> {
         let previous = self.statsd.get(name);
-        let backend = StatsdBackend::new(c, previous, discovery_update)?;
+        let backend = StatsdBackend::new(
+            self.stats.scope(name.as_str()),
+            c,
+            previous,
+            discovery_update,
+        )?;
         self.statsd.insert(name.clone(), backend);
         Ok(())
     }
@@ -200,9 +219,9 @@ pub struct Backends {
 }
 
 impl Backends {
-    pub fn new() -> Self {
+    pub fn new(stats: stats::Scope) -> Self {
         Backends {
-            inner: Arc::new(RwLock::new(BackendsInner::new())),
+            inner: Arc::new(RwLock::new(BackendsInner::new(stats))),
         }
     }
 

@@ -82,8 +82,14 @@ impl Default for Discovery {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AdminConfig {
+    pub port: u16,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
+    pub admin: Option<AdminConfig>,
     pub statsd: StatsdConfig,
     pub discovery: Option<Discovery>,
     pub processor: Option<Processors>,

@@ -11,6 +11,8 @@ use tokio::time::{sleep, timeout};
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::stats;
+
 use log::{info, warn};
 
 pub struct StatsdClient {
@@ -30,7 +32,7 @@ const SEND_DELAY: Duration = Duration::from_millis(500);
 const SEND_THRESHOLD: usize = 1024 * 1024;
 
 impl StatsdClient {
-    pub fn new(endpoint: &str, channel_buffer: usize) -> Self {
+    pub fn new(stats: stats::Scope, endpoint: &str, channel_buffer: usize) -> Self {
         // Currently, we need this tripwire to abort connection looping. This can probably be refactored
         let (trig, trip) = Tripwire::new();
         let (sender, recv) = mpsc::channel::<StatsdPDU>(channel_buffer);
@@ -42,7 +44,7 @@ impl StatsdClient {
         let eps = String::from(endpoint);
         let (ticker_sender, ticker_recv) = mpsc::channel::<bool>(1);
         tokio::spawn(ticker(ticker_sender));
-        tokio::spawn(client_task(eps, trip, recv, ticker_recv));
+        tokio::spawn(client_task(stats, eps, trip, recv, ticker_recv));
         StatsdClient {
             inner: Arc::new(inner),
             sender: sender,
@@ -69,7 +71,13 @@ impl Clone for StatsdClient {
 
 /// Repeatedly try to form a connection to and endpoint with backoff. If the
 /// tripwire is set, this function will then abort and return none.
-async fn form_connection(endpoint: &str, mut connect_tripwire: Tripwire) -> Option<TcpStream> {
+async fn form_connection(
+    stats: stats::Scope,
+    endpoint: &str,
+    mut connect_tripwire: Tripwire,
+) -> Option<TcpStream> {
+    let connections_made = stats.counter("connections_made").unwrap();
+    let connections_failed = stats.counter("connections_failed").unwrap();
     loop {
         let connect_attempt = timeout(CONNECT_TIMEOUT, TcpStream::connect(endpoint));
 
@@ -81,11 +89,13 @@ async fn form_connection(endpoint: &str, mut connect_tripwire: Tripwire) -> Opti
         ) {
             Err(_e) => {
                 warn!("connect timeout to {:?}", endpoint);
+                connections_failed.inc();
                 tokio::time::sleep(RECONNECT_DELAY).await;
                 continue;
             }
             Ok(Err(e)) => {
                 warn!("connect error to {:?} error {:?}", endpoint, e);
+                connections_failed.inc();
                 tokio::time::sleep(RECONNECT_DELAY).await;
                 continue;
             }
@@ -94,6 +104,7 @@ async fn form_connection(endpoint: &str, mut connect_tripwire: Tripwire) -> Opti
                 s
             }
         };
+        connections_made.inc();
         return Some(stream);
     }
 }
@@ -112,13 +123,17 @@ fn trim_to_next_newline(buf: &mut BytesMut) {
 }
 
 async fn client_sender(
+    stats: stats::Scope,
     endpoint: String,
     connect_tripwire: Tripwire,
     mut recv: mpsc::Receiver<bytes::BytesMut>,
 ) {
+    let bytes_sent = stats.counter("bytes_sent").unwrap();
+    let connections_aborted = stats.counter("connections_aborted").unwrap();
+
     let first_connect_tripwire = connect_tripwire.clone();
     let mut lazy_connect: Option<TcpStream> =
-        form_connection(endpoint.as_str(), first_connect_tripwire).await;
+        form_connection(stats.clone(), endpoint.as_str(), first_connect_tripwire).await;
 
     loop {
         let mut buf = match recv.recv().await {
@@ -134,7 +149,8 @@ async fn client_sender(
             let connect = match lazy_connect.as_mut() {
                 None => {
                     let reconnect_tripwire = connect_tripwire.clone();
-                    lazy_connect = form_connection(endpoint.as_str(), reconnect_tripwire).await;
+                    lazy_connect =
+                        form_connection(stats.clone(), endpoint.as_str(), reconnect_tripwire).await;
                     if lazy_connect.is_none() {
                         // Early check to see if the tripwire is set and bail
                         return;
@@ -150,6 +166,7 @@ async fn client_sender(
                     // Write 0 error, abort the connection and try again
                     lazy_connect = None;
                     trim_to_next_newline(&mut buf);
+                    connections_aborted.inc();
                     continue;
                 }
                 Ok(0) if buf.is_empty() => {
@@ -158,7 +175,8 @@ async fn client_sender(
                 Ok(_) if !buf.is_empty() => {
                     break;
                 }
-                Ok(_) => {
+                Ok(bytes) => {
+                    bytes_sent.inc_by(bytes as f64);
                     continue;
                 }
                 Err(e) => {
@@ -168,6 +186,7 @@ async fn client_sender(
                     );
                     trim_to_next_newline(&mut buf);
                     lazy_connect = None;
+                    connections_aborted.inc();
                     continue;
                 }
             };
@@ -193,14 +212,24 @@ async fn ticker(sender: mpsc::Sender<bool>) {
 }
 
 async fn client_task(
+    stats: stats::Scope,
     endpoint: String,
     connect_tripwire: Tripwire,
     mut recv: mpsc::Receiver<StatsdPDU>,
     mut ticker_recv: mpsc::Receiver<bool>,
 ) {
+    let backoff_send = stats.counter("send_backoff").unwrap();
+    let delayed_sends = stats.counter("delayed_sends").unwrap();
+    let messages_queued = stats.counter("messages_queued").unwrap();
+
     let mut buf = BytesMut::with_capacity(65535);
     let (buf_sender, buf_recv) = mpsc::channel(100);
-    tokio::spawn(client_sender(endpoint.clone(), connect_tripwire, buf_recv));
+    tokio::spawn(client_sender(
+        stats,
+        endpoint.clone(),
+        connect_tripwire,
+        buf_recv,
+    ));
 
     loop {
         let (pdu, timeout) = select! {
@@ -216,7 +245,9 @@ async fn client_task(
                 }
                 buf.put(pdu_bytes);
                 buf.put(b"\n".as_ref());
+                messages_queued.inc();
                 if buf.len() < SEND_THRESHOLD {
+                    backoff_send.inc();
                     // Do not send now
                     continue;
                 }
@@ -231,6 +262,7 @@ async fn client_task(
                 continue;
             }
             (None, true) => {
+                delayed_sends.inc();
                 // Timeout! Just go ahead and send whats in the buf now
             }
         };

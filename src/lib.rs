@@ -1,8 +1,10 @@
+pub mod admin;
 pub mod backends;
 pub mod config;
 pub mod discovery;
 pub mod sampler;
 pub mod shard;
+pub mod stats;
 pub mod statsd_client;
 pub mod statsd_server;
 pub mod built_info {
