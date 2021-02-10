@@ -223,7 +223,7 @@ async fn client_task(
     let messages_queued = stats.counter("messages_queued").unwrap();
 
     let mut buf = BytesMut::with_capacity(65535);
-    let (buf_sender, buf_recv) = mpsc::channel(100);
+    let (buf_sender, buf_recv) = mpsc::channel(10);
     tokio::spawn(client_sender(
         stats,
         endpoint.clone(),

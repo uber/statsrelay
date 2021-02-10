@@ -14,7 +14,7 @@ use std::sync::atomic::Ordering::Relaxed;
 use std::sync::Arc;
 use std::time::Duration;
 
-use log::{info, warn};
+use log::{info, warn, debug};
 
 use crate::backends::Backends;
 use crate::stats;
@@ -132,7 +132,7 @@ async fn client_handler(
 
         match result {
             Ok(bytes) if buf.is_empty() && bytes == 0 => {
-                info!(
+                debug!(
                     "closing reader (empty buffer, eof) {:?}",
                     socket.peer_addr()
                 );
@@ -153,8 +153,8 @@ async fn client_handler(
                     }
                     None => (),
                 };
-                info!("remaining {:?}", buf);
-                info!("closing reader {:?}", socket.peer_addr());
+                debug!("remaining {:?}", buf);
+                debug!("closing reader {:?}", socket.peer_addr());
                 break;
             }
             Ok(bytes) => {
@@ -176,11 +176,11 @@ async fn client_handler(
                 break;
             }
             Err(e) if e.kind() == ErrorKind::TimedOut => {
-                info!("read timeout, closing {:?}", socket.peer_addr());
+                debug!("read timeout, closing {:?}", socket.peer_addr());
                 break;
             }
             Err(e) => {
-                warn!("socket error {:?} from {:?}", e, socket.peer_addr());
+                debug!("socket error {:?} from {:?}", e, socket.peer_addr());
                 break;
             }
         }
@@ -210,7 +210,7 @@ pub async fn run(stats: stats::Scope, tripwire: Tripwire, bind: String, backends
 
                 match socket_res {
                     Ok((socket, _)) => {
-                        info!("accepted connection from {:?}", socket.peer_addr());
+                        debug!("accepted connection from {:?}", socket.peer_addr());
                         accept_connections.inc();
                         tokio::spawn(client_handler(stats.scope("connections"), tripwire.clone(), socket, backends.clone()));
                     }
