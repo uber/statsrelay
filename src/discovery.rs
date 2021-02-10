@@ -1,4 +1,6 @@
-use crate::config::{Discovery, DiscoverySource, S3DiscoverySource};
+use crate::config::{
+    Discovery, DiscoverySource, DiscoveryTransform, PathDiscoverySource, S3DiscoverySource,
+};
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -15,24 +17,54 @@ use tokio::io::AsyncReadExt;
 use tokio::time::Instant;
 use tokio_stream::StreamMap;
 
+// Transformer is a set of transformations to apply to a discovery set, for
+// example formatting output or repeating elements
+trait Transformer {
+    fn transform(&self, input: &Update) -> Option<Update>;
+}
+
+/// Convert an update into another update based on a format string
+fn transform_format(format: &String, input: &Update) -> Option<Update> {
+    if !format.contains("{}") {
+        return None;
+    }
+    Some(Update {
+        hosts: input
+            .hosts
+            .iter()
+            .map(|input| String::from(format).replace("{}", input))
+            .collect(),
+    })
+}
+
+/// A transformer which repeats each element count times, e.g. a,b count =2 would produce a,a,b,b
+fn transform_repeat(count: u32, input: &Update) -> Option<Update> {
+    match count {
+        0 => None,
+        1 => Some(input.clone()),
+        n => Some(Update {
+            hosts: input
+                .hosts
+                .iter()
+                .map(|input| std::iter::repeat(input.clone()).take(n as usize))
+                .flatten()
+                .collect(),
+        }),
+    }
+}
+
+impl Transformer for DiscoveryTransform {
+    fn transform(&self, input: &Update) -> Option<Update> {
+        match self {
+            DiscoveryTransform::Format { pattern } => transform_format(pattern, input),
+            DiscoveryTransform::Repeat { count } => transform_repeat(*count, input),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Update {
     hosts: Vec<String>,
-}
-
-impl Update {
-    pub fn format(&self, format: &str) -> Option<Self> {
-        if !format.contains("{}") {
-            return None;
-        }
-        Some(Update {
-            hosts: self
-                .hosts
-                .iter()
-                .map(|input| String::from(format).replace("{}", input))
-                .collect(),
-        })
-    }
 }
 
 impl Update {
@@ -63,7 +95,7 @@ async fn poll_s3_source(config: S3DiscoverySource) -> anyhow::Result<Update> {
     };
     let resp = s3.get_object(req).await?;
     let mut buffer = Vec::with_capacity(resp.content_length.unwrap_or(0 as i64) as usize);
-    let update = match resp.body {
+    let mut update = match resp.body {
         Some(contents) => {
             contents.into_async_read().read_to_end(&mut buffer).await?;
             let update: Update = serde_json::from_slice(buffer.as_ref())?;
@@ -74,22 +106,26 @@ async fn poll_s3_source(config: S3DiscoverySource) -> anyhow::Result<Update> {
             return Err(Error::EmptyObjectError.into());
         }
     };
-    if let Some(format) = &config.format {
-        if let Some(update) = update.format(format.as_str()) {
-            Ok(update)
-        } else {
-            Ok(update)
+
+    for trans in config.transforms.iter() {
+        if let Some(new_update) = trans.transform(&update) {
+            update = new_update;
         }
-    } else {
-        Ok(update)
     }
+    Ok(update)
 }
 
-async fn poll_file_source(path: String) -> anyhow::Result<Update> {
+async fn poll_file_source(config: PathDiscoverySource, path: String) -> anyhow::Result<Update> {
     let result = tokio::task::spawn_blocking(move || {
         let file = File::open(path)?;
         let reader = BufReader::new(file);
-        let update: Update = serde_json::from_reader(reader)?;
+        let mut update: Update = serde_json::from_reader(reader)?;
+
+        for trans in config.transforms.iter() {
+            if let Some(new_update) = trans.transform(&update) {
+                update = new_update;
+            }
+        }
         Ok(update)
     })
     .await?;
@@ -144,10 +180,11 @@ pub fn as_stream(config: &Discovery) -> impl Stream<Item = (String, Update)> {
                 streams.insert(name.clone(), ns);
             }
             DiscoverySource::StaticFile(source) => {
+                let cs = source.clone();
                 let ns = Box::pin(polled_stream(
                     source.path.clone(),
                     source.interval as u64,
-                    move |s| Box::pin(poll_file_source(s)),
+                    move |s| Box::pin(poll_file_source(cs.clone(), s)),
                 ));
                 //let ns = Box::pin(static_file_stream(source.clone()));
                 streams.insert(name.clone(), ns);
@@ -187,16 +224,40 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use super::Update;
+    use crate::config::DiscoveryTransform;
+
+    use super::{Transformer, Update};
 
     #[test]
     fn format() {
         let o1 = Update {
             hosts: vec!["a", "b"].iter().map(|s| (*s).into()).collect(),
         };
-        let f = o1.format("{}hello").unwrap();
+        let transformer = DiscoveryTransform::Format {
+            pattern: "{}hello".into(),
+        };
+        let f = transformer.transform(&o1).unwrap();
         assert_eq!(f.hosts[0], "ahello");
         assert_eq!(f.hosts[1], "bhello");
-        assert!(o1.format("foo").is_none());
+
+        let bad_transformer = DiscoveryTransform::Format {
+            pattern: "foo".into(),
+        };
+
+        assert!(bad_transformer.transform(&o1).is_none());
+    }
+
+    #[test]
+    fn repeat() {
+        let o1 = Update {
+            hosts: vec!["a", "b"].iter().map(|s| (*s).into()).collect(),
+        };
+        let transformer = DiscoveryTransform::Repeat { count: 4 };
+        let f = transformer.transform(&o1).unwrap();
+        assert_eq!(f.hosts, vec!["a", "a", "a", "a", "b", "b", "b", "b"]);
+
+        let bad_transformer = DiscoveryTransform::Repeat { count: 0 };
+
+        assert!(bad_transformer.transform(&o1).is_none());
     }
 }

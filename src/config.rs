@@ -48,18 +48,26 @@ pub struct StatsdConfig {
     pub backends: HashMap<String, StatsdDuplicateTo>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum DiscoveryTransform {
+    Format{ pattern: String },
+    Repeat{ count: u32 },
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct S3DiscoverySource {
     pub bucket: String,
     pub key: String,
     pub interval: u32,
-    pub format: Option<String>,
+    pub transforms: Vec<DiscoveryTransform>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PathDiscoverySource {
     pub path: String,
     pub interval: u32,
+    pub transforms: Vec<DiscoveryTransform>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -166,7 +174,17 @@ pub mod test {
                         "type": "s3",
                         "bucket": "foo",
                         "key": "bar",
-                        "interval": 3
+                        "interval": 3,
+                        "transforms": [
+                            {
+                                "type": "repeat",
+                                "count": 3
+                            },
+                            {
+                                "type": "format",
+                                "pattern": "{}:123"
+                            }
+                        ]
                     }
                 }
             }

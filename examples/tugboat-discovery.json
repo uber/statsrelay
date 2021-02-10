@@ -20,7 +20,21 @@
             "path_discovery": {
                 "type": "static_file",
                 "path": "examples/source-example1.json",
-                "interval": 5
+                "interval": 5,
+                "transforms": [
+                    {
+                        "type": "repeat",
+                        "count": 2
+                    },
+                    {
+                        "type": "format",
+                        "pattern": "{}:cheese"
+                    },
+                    {
+                        "type": "format",
+                        "pattern": "{}:cheese2"
+                    }
+                ]
             }
         }
     }
