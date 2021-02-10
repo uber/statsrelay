@@ -60,14 +60,14 @@ pub struct S3DiscoverySource {
     pub bucket: String,
     pub key: String,
     pub interval: u32,
-    pub transforms: Vec<DiscoveryTransform>,
+    pub transforms: Option<Vec<DiscoveryTransform>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PathDiscoverySource {
     pub path: String,
     pub interval: u32,
-    pub transforms: Vec<DiscoveryTransform>,
+    pub transforms: Option<Vec<DiscoveryTransform>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

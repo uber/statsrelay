@@ -107,7 +107,7 @@ async fn poll_s3_source(config: S3DiscoverySource) -> anyhow::Result<Update> {
         }
     };
 
-    for trans in config.transforms.iter() {
+    for trans in config.transforms.unwrap_or_default().iter() {
         if let Some(new_update) = trans.transform(&update) {
             update = new_update;
         }
@@ -121,7 +121,7 @@ async fn poll_file_source(config: PathDiscoverySource, path: String) -> anyhow::
         let reader = BufReader::new(file);
         let mut update: Update = serde_json::from_reader(reader)?;
 
-        for trans in config.transforms.iter() {
+        for trans in config.transforms.unwrap_or_default().iter() {
             if let Some(new_update) = trans.transform(&update) {
                 update = new_update;
             }
