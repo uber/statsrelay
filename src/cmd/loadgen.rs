@@ -3,8 +3,9 @@ use chrono::prelude::*;
 use structopt::StructOpt;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
+use std::time::Duration;
 
-const PRINT_INTERVAL: u64 = 1000000;
+const PRINT_INTERVAL: u64 = 100000;
 
 #[derive(StructOpt, Debug)]
 struct Options {
@@ -44,7 +45,7 @@ async fn main() {
                 diff.num_milliseconds(),
                 PRINT_INTERVAL as f64 / (diff.num_milliseconds() as f64 / 1000.0)
             );
-            //tokio::time::sleep(Duration::from_millis(40)).await;
+            tokio::time::sleep(Duration::from_millis(40)).await;
         };
     }
 }

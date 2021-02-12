@@ -1,4 +1,4 @@
-use bytes::{BufMut, BytesMut};
+use bytes::{BufMut, BytesMut, Bytes};
 use memchr::memchr;
 use statsdproto::statsd::StatsdPDU;
 use stream_cancel::{Trigger, Tripwire};
@@ -30,6 +30,7 @@ const RECONNECT_DELAY: Duration = Duration::from_secs(5);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 const SEND_DELAY: Duration = Duration::from_millis(500);
 const SEND_THRESHOLD: usize = 10 * 1024;
+const INITIAL_BUF_CAPACITY: usize = SEND_THRESHOLD + 1024;
 
 impl StatsdClient {
     pub fn new(stats: stats::Scope, endpoint: &str, channel_buffer: usize) -> Self {
@@ -112,7 +113,7 @@ async fn form_connection(
 // Since statsd has no notion of when a message is actually received, we have to
 // assume a buffer write is incomplete and just drop it here. This simply
 // advances to the next newline in the buffer if found.
-fn trim_to_next_newline(buf: &mut BytesMut) {
+fn trim_to_next_newline(buf: &mut Bytes) {
     match memchr(b'\n', buf) {
         None => (),
         Some(pos) => {
@@ -126,7 +127,7 @@ async fn client_sender(
     stats: stats::Scope,
     endpoint: String,
     connect_tripwire: Tripwire,
-    mut recv: mpsc::Receiver<bytes::BytesMut>,
+    mut recv: mpsc::Receiver<bytes::Bytes>,
 ) {
     let bytes_sent = stats.counter("bytes_sent").unwrap();
     let connections_aborted = stats.counter("connections_aborted").unwrap();
@@ -143,7 +144,7 @@ async fn client_sender(
             Some(p) => p,
         };
         loop {
-            if !buf.has_remaining_mut() {
+            if buf.is_empty() {
                 break;
             }
             let connect = match lazy_connect.as_mut() {
@@ -170,6 +171,7 @@ async fn client_sender(
                     continue;
                 }
                 Ok(0) if buf.is_empty() => {
+                    drop(buf);
                     break;
                 }
                 Ok(_) if !buf.is_empty() => {
@@ -222,7 +224,7 @@ async fn client_task(
     let delayed_sends = stats.counter("delayed_sends").unwrap();
     let messages_queued = stats.counter("messages_queued").unwrap();
 
-    let mut buf = BytesMut::with_capacity(65535);
+    let mut buf = BytesMut::with_capacity(INITIAL_BUF_CAPACITY);
     let (buf_sender, buf_recv) = mpsc::channel(10);
     tokio::spawn(client_sender(
         stats,
@@ -241,7 +243,7 @@ async fn client_task(
             (Some(pdu), _) => {
                 let pdu_bytes = pdu.as_ref();
                 if buf.remaining_mut() < pdu_bytes.len() {
-                    buf.reserve(1024 * 1024);
+                    buf.reserve(pdu_bytes.len()+10);
                 }
                 buf.put(pdu_bytes);
                 buf.put(b"\n".as_ref());
@@ -266,9 +268,10 @@ async fn client_task(
                 // Timeout! Just go ahead and send whats in the buf now
             }
         };
-        match buf_sender.send(buf.split()).await {
+        match buf_sender.send(buf.freeze()).await {
             Err(_e) => return,
             Ok(_) => (),
         };
+        buf = BytesMut::with_capacity(INITIAL_BUF_CAPACITY);
     }
 }
